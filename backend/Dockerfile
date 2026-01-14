@@ -24,6 +24,7 @@ RUN pip install --upgrade pip
 COPY requirements.txt .
 
 # 6. Instalar y forzar gunicorn
+RUN pip install --no-cache-dir -r requirements.txt && pip install gunicorn
 
 # 7. Copiar código
 COPY . .
