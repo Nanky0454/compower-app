@@ -1,11 +1,32 @@
 services:
+  # Tu aplicación principal
   mi-sistema:
     build: ./backend
     container_name: sistema_inventario
     restart: always
-    ports:
-      - "80:5000"
+    # OJO: Ya no exponemos puertos aquí, Caddy se encarga
+    # ports:
+    #   - "80:5000"  <-- ESTO SE BORRA O SE COMENTA
     volumes:
       - ./backend/instance:/app/instance
-      # ESTA LÍNEA ES LA CLAVE:
       - ./frontend/dist:/app/frontend_build
+      - ./.env:/app/.env
+
+  # El nuevo portero de seguridad
+  caddy:
+    image: caddy:alpine
+    container_name: caddy_https
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"  # El puerto de HTTPS
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - mi-sistema
+
+volumes:
+  caddy_data:
+  caddy_config:
