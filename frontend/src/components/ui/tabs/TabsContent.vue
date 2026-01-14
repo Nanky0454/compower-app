@@ -1,0 +1,24 @@
+<script setup>
+import { TabsContent } from 'reka-ui'
+import { cn } from '@/lib/utils'
+
+const props = defineProps({
+  value: { type: [String, Number], required: true },
+  forceMount: { type: Boolean, required: false },
+  asChild: { type: Boolean, required: false },
+  as: { type: null, required: false },
+  class: { type: null, required: false },
+})
+</script>
+
+<template>
+  <TabsContent
+    v-bind="props"
+    :class="cn(
+      'mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      props.class,
+    )"
+  >
+    <slot />
+  </TabsContent>
+</template>

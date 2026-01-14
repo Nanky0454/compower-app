@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Stock</title>
+    <style>
+        @page { size: A4 landscape; margin: 1cm; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 8pt; color: #333; }
+        .header { text-align: center; margin-bottom: 15px; }
+        .header h1 { margin: 0; font-size: 14pt; }
+        .header h2 { margin: 5px 0; font-size: 12pt; }
+        .header p { margin: 0; font-size: 9pt; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; font-size: 9pt;}
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { border-bottom: 2px solid #000; text-align: left; padding: 6px 4px; font-size: 8pt; text-transform: uppercase; }
+        td { padding: 5px 4px; border-bottom: 1px solid #eee; }
+        .num { text-align: right; }
+        .total-row td { font-weight: bold; border-top: 2px solid #000; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>COMPOWER INGENIERIA ESPECIALIZADA S.A.C.</h1>
+        <h2>STOCK DE ARTICULOS VALORIZADO</h2>
+        <p>Periodo del {{ start_date }} al {{ end_date }}</p>
+    </div>
+
+    <div class="info-row">
+        <span><strong>ALMACÉN:</strong> {{ warehouse_name }}</span>
+        <span><strong>MONEDA:</strong> {{ currency }}</span>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 8%;">CÓDIGO</th>
+                <th style="width: 27%;">DESCRIPCIÓN</th>
+                <th style="width: 5%;">U.M.</th>
+                <th class="num" style="width: 8%;">SALDO INI.</th>
+                <th class="num" style="width: 8%;">ENTRADAS</th>
+                <th class="num" style="width: 8%;">SALIDAS</th>
+                <th class="num font-bold" style="width: 8%;">STOCK FINAL</th>
+                <th class="num" style="width: 8%;">COSTO PROM.</th>
+                <th class="num" style="width: 10%;">IMPORTE</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in data %}
+            <tr>
+                <td>{{ item.codigo }}</td>
+                <td>{{ item.descripcion }}</td>
+                <td>{{ item.unidad }}</td>
+                <td class="num">{{ "%.2f"|format(item.saldo_inicial) }}</td>
+                <td class="num">{{ "%.2f"|format(item.entradas) }}</td>
+                <td class="num">{{ "%.2f"|format(item.salidas) }}</td>
+                <td class="num font-bold">{{ "%.2f"|format(item.stock_final) }}</td>
+                <td class="num">{{ "%.2f"|format(item.costo_prom) }}</td>
+                <td class="num">{{ "%.2f"|format(item.importe) }}</td>
+            </tr>
+            {% endfor %}
+             <tr class="total-row">
+                <td colspan="8" class="text-right font-bold">VALOR TOTAL DE INVENTARIO:</td>
+                <td class="num">{{ "%.2f"|format(total_importe) }}</td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

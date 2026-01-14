@@ -1,0 +1,11 @@
+services:
+  mi-sistema:
+    # Le decimos que el código está en la carpeta "backend"
+    build: ./backend
+    container_name: sistema_inventario
+    restart: always
+    ports:
+      - "80:5000"
+    volumes:
+      # Mapeamos la carpeta instance que está DENTRO de backend
+      - ./backend/instance:/app/instance

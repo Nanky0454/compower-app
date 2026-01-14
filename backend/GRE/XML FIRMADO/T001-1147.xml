@@ -1,0 +1,165 @@
+<?xml version='1.0' encoding='utf-8'?>
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ext:UBLExtensions>
+    <ext:UBLExtension>
+      <ext:ExtensionContent><ds:Signature Id="Sign"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>3zQHdRxIIEsLglJaMcU39mwVLfx9WJ893P83fL9YNys=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>hHZrdb/gBBQE1rkMFvEgI5Gb4eyGm3OpknS6hiX5/mnDFrqZOHlt2I5s83ofRT7LuoucJjwA9tBs4LecJqNnhicJttmNsx5HoUfb2KVeO42+BFDu7YDvhrjdfAFIUy3aly0fHYAjG2v3divisF3O4ApQHhvbRoEnh8d/FolPtn4/ekH51ZU0RiYsQyABEzS+m0jrPkGPd87uZ9nj7sh09CU7FfjeRpzlzhGs+KDGbQkp/TWFkRMbrxYvSOypHXcnyYHwbRnENEBWBtnt21msPiiH2vvioYoDWxWvr806Ksckwrk/x3DsL2cBx5ar+DHiYkN50/cO2Nw7rVman/DxOw==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIHfjCCBmagAwIBAgICBI8wDQYJKoZIhvcNAQELBQAwgZ8xCzAJBgNVBAYTAlBF
+MRswGQYDVQQKExJBQ0VQVEEgUEVSVSBTLkEuQy4xPTA7BgNVBAMTNEFjZXB0YSBQ
+ZXJ1IEF1dG9yaWRhZCBDZXJ0aWZpY2Fkb3JhIEVsZWN0cm9uaWNhIC0gVjExHjAc
+BgkqhkiG9w0BCQEWD2luZm9AYWNlcHRhLmNvbTEUMBIGA1UEBRMLMjA1NjI5OTk3
+MTEwHhcNMjQwMzE0MTgxNjU0WhcNMjYwMzE0MTgxNjU0WjCCAUYxCzAJBgNVBAYT
+AlBFMQ0wCwYDVQQIEwRMaW1hMRowGAYDVQQHExFTYW50aWFnbyBkZSBTdXJjbzEz
+MDEGA1UECRMqQ0FMLiBTQU4gQk9SSkEgTXogMjQ5MiBMb3RlIDEgSW50ZXJpb3Ig
+MTA0MTEwLwYDVQQKEyhDT01QT1dFUiBJTkdFTklFUklBIEVTUEVDSUFMSVpBREEg
+Uy5BLkMuMRQwEgYDVQQLEwsyMDUyMjM0ODgzMTEUMBIGA1UECxMLMjA1MjIzNDg4
+MzExGDAWBgNVBAwTD0dFUkVOVEUgR0VORVJBTDEnMCUGA1UEAxMeSlVBTiBDQVJM
+T1MgRklHVUVST0EgU09UT01BWU9SMSIwIAYJKoZIhvcNAQkBFhNSR0FSQ0lBQENP
+TVBPV0VSLlBFMREwDwYDVQQFEwgwOTM4MDU3ODCCASIwDQYJKoZIhvcNAQEBBQAD
+ggEPADCCAQoCggEBAMdQ6wX7Hfl3DDY8LMhzU8ve3CQ5l3UFeSqmaZMbvKBP3k9u
+nS4R8la9kfq2bJRX2helNwivonWyfeJsitV4oN2+75a5bz32R4q8KFxpcKlXijUD
+aoZcsVYTIOfGi0Ew4/xN7Ldzu4XH73fFLCavyfIJL17Qsu2q//eiwlYgA0MBaVBe
+ckQ7L3yqZPNAvcOYeuIHKCPXcb6oOvuYhODd2QcaJju0/SMgOEl5YhBUkpcEydnF
+cQ43dHWgV4s7nHNsKLLRKSMNGNZPR2yvJ+fcRCpkSP+lE42H/7OEyGEkJuGrgStC
+1imOgHxjPiH6m4xQ+YdC510FDv9nUfXXaIIfiZ0CAwEAAaOCAxgwggMUMAkGA1Ud
+EwQCMAAwHwYDVR0jBBgwFoAUgSVSvbOqjaH8r1lGOsnjrDbObvMwHQYDVR0OBBYE
+FAdOTrToB0OGqb3fwMyBeJzdpwFjMAsGA1UdDwQEAwIGwDAdBgNVHSUEFjAUBggr
+BgEFBQcDAgYIKwYBBQUHAwQwggEDBgNVHSAEgfswgfgwgfUGCCsGAQQBtWsCMIHo
+MDcGCCsGAQUFBwIBFitodHRwczovL2FjcGV2MS5hY2VwdGEucGUvQ1BTLVBFLVYx
+LUFjZXB0YXBlMIGsBggrBgEFBQcCAjCBnzAZFhJBQ0VQVEEgUEVSVSBTLkEuQy4w
+AwIBCRqBgUVsIHRpdHVsYXIgaGEgc2lkbyB2YWxpZGFkbyBlbiBmb3JtYSBwcmVz
+ZW5jaWFsLCBxdWVkYW5kbyBoYWJpbGl0YWRvIGVsIENlcnRpZmljYWRvIHBhcmEg
+dXNvIHRyaWJ1dGFyaW8sIHBhZ29zLCBjb21lcmNpbyB5IG90cm9zLjBcBgNVHRIE
+VTBToBkGCCsGAQQBwQECoA0WCzIwNTYyOTk5NzExoCUGCCsGAQUFBwgDoBkwFwwL
+MjA1NjI5OTk3MTEGCCsGAQQBwQECgQ9pbmZvQGFjZXB0YS5jb20wWgYDVR0RBFMw
+UaAWBggrBgEEAcEBAaAKFggwOTM4MDU3OKAiBggrBgEFBQcIA6AWMBQMCDA5Mzgw
+NTc4BggrBgEEAcEBAoETUkdBUkNJQUBDT01QT1dFUi5QRTCBkgYIKwYBBQUHAQEE
+gYUwgYIwQQYIKwYBBQUHMAKGNWh0dHBzOi8vYWNwZXYxLmFjZXB0YS5wZS9FbGVj
+dHJvbmljYS1WMS5oaWVyYXJjaHkucGVtMD0GCCsGAQUFBzABhjFodHRwczovL2Fj
+cGV2MS5hY2VwdGEucGUvcGV2MS9vY3NwL0VsZWN0cm9uaWNhLVYxMEUGA1UdHwQ+
+MDwwOqA4oDaGNGh0dHBzOi8vYWNwZXYxLmFjZXB0YS5wZS9wZXYxL2NybC9FbGVj
+dHJvbmljYS1WMS5jcmwwDQYJKoZIhvcNAQELBQADggEBAEp5iWANEbE65AJ4Vzod
+2jMPOfKZMW+JI9Wp8UyJCuLmTBh5+ZGc2JQfDLD8HvwH3zdM6C4vagsVpkMxf9bL
+T4okb8wCN8tmCe746QfoXS7ErBfU4LHvKvEymmUAgzrqjeO4RocVgdRJ8Vzl4THh
+mt927/daeb4M0C2j6yhaOus3wh1osryL8u2pMqeLXCOdoAmdaFXIphEERiwVjykl
+VGJ9iXnZEkk1BZfv/RR2INo+yRp7apuw11U05JqP+LT4rrXql7xkPYRVJfy8Urh9
+zZ4w9OYzBwqH4EhffmdOfW5VtcuQ9ijUp6HpJD1Xclavb9xTghfOLw4SRYU0Yzdf
+lR0=
+</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature></ext:ExtensionContent>
+    </ext:UBLExtension>
+  </ext:UBLExtensions>
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>2.0</cbc:CustomizationID>
+  <cbc:ID>T001-1147</cbc:ID>
+  <cbc:IssueDate>2026-01-13</cbc:IssueDate>
+  <cbc:IssueTime>10:41:02</cbc:IssueTime>
+  <cbc:DespatchAdviceTypeCode>09</cbc:DespatchAdviceTypeCode>
+  <cac:Signature>
+    <cbc:ID>20522348831</cbc:ID>
+    <cac:SignatoryParty>
+      <cac:PartyIdentification>
+        <cbc:ID>20522348831</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>COMPOWER INGENIERIA ESPECIALIZADA S.A.C.</cbc:Name>
+      </cac:PartyName>
+    </cac:SignatoryParty>
+    <cac:DigitalSignatureAttachment>
+      <cac:ExternalReference>
+        <cbc:URI>#Sign</cbc:URI>
+      </cac:ExternalReference>
+    </cac:DigitalSignatureAttachment>
+  </cac:Signature>
+  <cac:DespatchSupplierParty>
+    <cbc:CustomerAssignedAccountID schemeID="6">20522348831</cbc:CustomerAssignedAccountID>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="6" schemeName="Documento de Identidad" schemeAgencyName="PE:SUNAT" schemeURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo06">20522348831</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>COMPOWER INGENIERIA ESPECIALIZADA S.A.C.</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:DespatchSupplierParty>
+  <cac:DeliveryCustomerParty>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="6">20600250834</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>O &amp; M SERVICIO INTEGRAL EN TELECOMUNICACIONES S.R.L. - O &amp; M SITEL S.R.L.</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:DeliveryCustomerParty>
+  <cac:Shipment>
+    <cbc:ID>SUNAT_Envio</cbc:ID>
+    <cbc:HandlingCode listAgencyName="PE:SUNAT" listName="Motivo de traslado" listURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo20">13</cbc:HandlingCode>
+    <cbc:HandlingInstructions>Otros</cbc:HandlingInstructions>
+    <cbc:GrossWeightMeasure unitCode="KGM">1</cbc:GrossWeightMeasure>
+    <cac:ShipmentStage>
+      <cbc:TransportModeCode listName="Modalidad de traslado" listAgencyName="PE:SUNAT" listURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo18">02</cbc:TransportModeCode>
+      <cac:TransitPeriod>
+        <cbc:StartDate>2026-01-13</cbc:StartDate>
+      </cac:TransitPeriod>
+      <cac:TransportMeans>
+        <cac:RoadTransport>
+          <cbc:LicensePlateID>BFR855</cbc:LicensePlateID>
+        </cac:RoadTransport>
+      </cac:TransportMeans>
+      <cac:DriverPerson>
+        <cbc:ID schemeID="1">10361826</cbc:ID>
+        <cbc:FirstName>JULIO CESAR</cbc:FirstName>
+        <cbc:FamilyName>HUGGO TORRES</cbc:FamilyName>
+        <cbc:JobTitle>Principal</cbc:JobTitle>
+        <cac:IdentityDocumentReference>
+          <cbc:ID>Q76194310</cbc:ID>
+        </cac:IdentityDocumentReference>
+      </cac:DriverPerson>
+    </cac:ShipmentStage>
+    <cac:Delivery>
+      <cac:DeliveryAddress>
+        <cbc:ID schemeAgencyName="PE:INEI" schemeName="Ubigeos">150135</cbc:ID>
+        <cac:AddressLine>
+          <cbc:Line>AV. SOL DE NARANJAL MZA. E LOTE 9 </cbc:Line>
+        </cac:AddressLine>
+      </cac:DeliveryAddress>
+      <cac:Despatch>
+        <cac:DespatchAddress>
+          <cbc:ID schemeAgencyName="PE:INEI" schemeName="Ubigeos">150140</cbc:ID>
+          <cac:AddressLine>
+            <cbc:Line>CAL.SAN BORJA MZ. 2492 LT. 1 INT. 104</cbc:Line>
+          </cac:AddressLine>
+        </cac:DespatchAddress>
+      </cac:Despatch>
+    </cac:Delivery>
+    <cac:TransportHandlingUnit>
+      <cac:TransportEquipment>
+        <cbc:ID>BFR855</cbc:ID>
+      </cac:TransportEquipment>
+    </cac:TransportHandlingUnit>
+  </cac:Shipment>
+  <cac:DespatchLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:DeliveredQuantity unitCode="SET">2</cbc:DeliveredQuantity>
+    <cac:OrderLineReference>
+      <cbc:LineID>2</cbc:LineID>
+    </cac:OrderLineReference>
+    <cac:Item>
+      <cbc:Description>PAR DE BRAZOS DE 30CM - DIAMETRO 18 PARA POSTE (INCLUYE PERNERIA Y ACCESORIOS DE ANCLAJE)</cbc:Description>
+      <cac:SellersItemIdentification>
+        <cbc:ID>BRZ-027</cbc:ID>
+      </cac:SellersItemIdentification>
+    </cac:Item>
+  </cac:DespatchLine>
+  <cac:DespatchLine>
+    <cbc:ID>2</cbc:ID>
+    <cbc:DeliveredQuantity unitCode="TU">1</cbc:DeliveredQuantity>
+    <cac:OrderLineReference>
+      <cbc:LineID>3</cbc:LineID>
+    </cac:OrderLineReference>
+    <cac:Item>
+      <cbc:Description>TUBO RED. GALV. 2.5" X 2000 MM</cbc:Description>
+      <cac:SellersItemIdentification>
+        <cbc:ID>TUB-012</cbc:ID>
+      </cac:SellersItemIdentification>
+    </cac:Item>
+  </cac:DespatchLine>
+</DespatchAdvice>
