@@ -63,6 +63,7 @@ function getStatusColor(status) {
 const isSubmitting = ref(false)
 const catalogs = ref({ document_types: [], statuses: [], cost_centers: [] })
 
+// Configuración del Correlativo (AHORA EDITABLES)
 const correlativeSeries = ref('026')
 const correlativeNumber = ref(1)
 
@@ -88,6 +89,7 @@ const isSearchingProvider = ref(false)
 let searchTimeout = null
 
 // --- COMPUTED ---
+// Genera el string final para enviar al backend (Ej: "026-005")
 const formattedCorrelative = computed(() => {
   const num = String(correlativeNumber.value).padStart(3, '0')
   return `${correlativeSeries.value}-${num}`
@@ -142,6 +144,7 @@ async function fetchLastCorrelative() {
             if(lastOrder.codigo && lastOrder.codigo.startsWith('026-')) {
                 const parts = lastOrder.codigo.split('-')
                 const lastNum = parseInt(parts[1])
+                // Sugerimos el siguiente, pero el usuario puede editarlo en el Input
                 correlativeNumber.value = lastNum + 1
             }
         }
@@ -149,10 +152,10 @@ async function fetchLastCorrelative() {
   } catch(e) { console.error("Error obteniendo correlativo", e)}
 }
 
-// --- ¡AQUÍ ESTÁ LA LÓGICA QUE PEDISTE REPLICAR! ---
+// --- BUSCADOR PROVEEDOR ---
 async function handleProviderSearch() {
   const q = formData.provider_search.trim()
-  if (!q) return // Si está vacío, no hacemos nada
+  if (!q) return
 
   isSearchingProvider.value = true
   clearTimeout(searchTimeout)
@@ -161,37 +164,32 @@ async function handleProviderSearch() {
     try {
       const token = await getAccessTokenSilently()
 
-      // 1. Verificamos si lo que escribió parece un RUC (11 dígitos numéricos)
       if (/^\d{11}$/.test(q)) {
-
-         // A) Primero buscamos en la BD LOCAL
+         // A) Buscar en BD Local
          const localRes = await fetch(`${FLASK_API_URL}/purchases/providers?q=${q}`, {
             headers: { 'Authorization': `Bearer ${token}` }
          })
          const localData = await localRes.json()
 
          if (localData.length > 0) {
-            // ¡ENCONTRADO LOCALMENTE! Usamos ese y no gastamos API externa
             providerResults.value = localData
             showProviderResults.value = true
          } else {
-            // B) NO ESTÁ EN LOCAL -> Llamamos a la API EXTERNA (Sunat Lookup)
-            // (El backend se encargará de guardarlo en la BD si lo encuentra)
+            // B) Buscar en API SUNAT
             const sunatRes = await fetch(`${FLASK_API_URL}/purchases/lookup-provider/${q}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
 
             if (sunatRes.ok) {
                 const sunatData = await sunatRes.json()
-                providerResults.value = [sunatData] // Lo mostramos como resultado único
+                providerResults.value = [sunatData]
                 showProviderResults.value = true
             } else {
-                providerResults.value = [] // No existe ni en SUNAT
+                providerResults.value = []
             }
          }
-
       } else {
-         // 2. Si NO es un RUC (es un nombre), buscamos solo localmente
+         // C) Búsqueda por nombre (solo local)
          const res = await fetch(`${FLASK_API_URL}/purchases/providers?q=${q}`, {
             headers: { 'Authorization': `Bearer ${token}` }
          })
@@ -206,7 +204,7 @@ async function handleProviderSearch() {
     } finally {
         isSearchingProvider.value = false
     }
-  }, 400) // Debounce de 400ms para no saturar
+  }, 400)
 }
 
 function selectProvider(p) {
@@ -215,8 +213,8 @@ function selectProvider(p) {
   formData.provider_search = p.name || p.razon_social
   showProviderResults.value = false
 }
-// ---------------------------------------------------
 
+// --- ITEMS ---
 function addItem() {
   formData.items.push({
     invoice_detail_text: '',
@@ -230,6 +228,7 @@ function removeItem(index) {
   formData.items.splice(index, 1)
 }
 
+// --- GUARDAR (SUBMIT) ---
 async function handleSubmit() {
   if (!formData.provider_search || formData.items.length === 0) {
     alert("Seleccione un proveedor y agregue al menos un item.")
@@ -240,6 +239,7 @@ async function handleSubmit() {
   try {
     const token = await getAccessTokenSilently()
 
+    // Determinamos el ID del tipo de documento basándonos en la selección
     const docTypeName = selectedType.value === 'OC' ? 'Orden de Compra' : 'Orden de Servicio'
     const docType = catalogs.value.document_types.find(d => d.name.includes(docTypeName) || d.name === selectedType.value)
     const docTypeId = docType ? docType.id : 1
@@ -247,14 +247,20 @@ async function handleSubmit() {
     const status = catalogs.value.statuses.find(s => s.name === 'Emitida') || catalogs.value.statuses[0]
 
     const payload = {
+      // 1. Enviamos el correlativo construido con los inputs editables
       document_number: formattedCorrelative.value,
+
+      // 2. IMPORTANTE: Enviamos el tipo (OC o OS) explícitamente
+      order_type: selectedType.value,
+
       provider_id: formData.provider_id,
       document_type_id: docTypeId,
       status_id: status.id,
       cost_center_id: formData.cost_center_id,
       reference: formData.reference,
       attention: formData.attention,
-      scope: formData.scope,
+      // Solo enviamos alcance si es OS (aunque el backend lo acepta igual, es bueno limpiar)
+      scope: selectedType.value === 'OS' ? formData.scope : '',
       payment_condition: formData.payment_condition,
       currency: formData.currency,
       transfer_date: formData.transfer_date,
@@ -284,7 +290,7 @@ async function handleSubmit() {
         throw new Error(err.error || 'Error al guardar')
     }
 
-    alert(`Orden ${formattedCorrelative.value} creada correctamente.`)
+    alert(`Orden ${formattedCorrelative.value} (${selectedType.value}) creada correctamente.`)
     switchToList()
 
   } catch (e) {
@@ -334,8 +340,8 @@ async function handleSubmit() {
                 </TableCell>
                 <TableCell>
                   <span class="text-xs font-bold px-2 py-1 rounded"
-                    :class="order.tipo.includes('Servicio') ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'">
-                    {{ order.tipo.includes('Servicio') ? 'OS' : 'OC' }}
+                    :class="(order.order_type === 'OS' || order.tipo.includes('Servicio')) ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'">
+                    {{ order.order_type || (order.tipo.includes('Servicio') ? 'OS' : 'OC') }}
                   </span>
                 </TableCell>
                 <TableCell>
@@ -405,9 +411,13 @@ async function handleSubmit() {
             <CardHeader class="pb-3 border-b py-3 bg-gray-50/50">
               <div class="flex justify-between items-center">
                 <CardTitle class="text-sm font-bold uppercase text-gray-600">1. Datos Generales</CardTitle>
-                <div class="bg-blue-50 text-blue-700 px-3 py-1 rounded font-mono font-bold text-base border border-blue-200">
-                  {{ formattedCorrelative }}
+
+                <div class="flex items-center gap-1">
+                    <Input v-model="correlativeSeries" class="h-8 w-16 text-center font-mono font-bold bg-blue-50 text-blue-700 border-blue-200" maxlength="3" />
+                    <span class="text-blue-300 font-bold">-</span>
+                    <Input v-model="correlativeNumber" type="number" class="h-8 w-20 text-center font-mono font-bold bg-blue-50 text-blue-700 border-blue-200" min="1" />
                 </div>
+
               </div>
             </CardHeader>
             <CardContent class="pt-4 grid gap-4">
@@ -516,8 +526,8 @@ async function handleSubmit() {
                <div><Label>Forma de Pago</Label><Input v-model="formData.payment_condition" /></div>
                <div><Label>Fecha Traslado</Label><Input type="date" v-model="formData.transfer_date" /></div>
 
-               <div class="pt-2">
-                  <Label>Alcance (Detalle Técnico)</Label>
+               <div class="pt-2 animate-in fade-in slide-in-from-top-2" v-if="selectedType === 'OS'">
+                  <Label class="text-orange-600">Alcance (Detalle Técnico - OS)</Label>
                   <textarea
                       v-model="formData.scope"
                       rows="6"

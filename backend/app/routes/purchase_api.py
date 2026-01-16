@@ -11,87 +11,53 @@ from datetime import datetime
 purchase_api = Blueprint('purchase_api', __name__)
 
 
-# --- API 1: La API de SUNAT segura ---
+# --- API 1: Lookup SUNAT ---
 @purchase_api.route('/lookup-provider/<string:ruc>')
 @requires_auth(required_permission='create:purchases')
 def lookup_provider(ruc, payload):
-    # 1. Buscar en BD Local primero
     provider = Provider.query.filter_by(ruc=ruc).first()
-    if provider:
-        return jsonify(provider.to_dict())
+    if provider: return jsonify(provider.to_dict())
 
-    print(f"Consultando RUC {ruc} a la API externa...")
+    print(f"Consultando RUC {ruc} a SUNAT...")
     try:
         api_key = current_app.config.get('SUNAT_API_KEY', '')
         url = f"https://api.decolecta.com/v1/sunat/ruc?numero={ruc}"
-
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
-        }
+        headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
 
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()
 
-        # 2. Extracción de datos
-        address = data.get('direccion') or data.get('domicilio_fiscal') or data.get('direccion_completa') or ''
+        address = data.get('direccion') or data.get('domicilio_fiscal') or ''
         ubigeo = data.get('ubigeo') or ''
         name = data.get('razon_social') or data.get('nombre') or ''
 
-        # 3. Crear Proveedor en BD
         try:
-            new_provider = Provider(
-                ruc=data['numero_documento'],
-                name=name,
-                address=address, # Descomenta si tu modelo lo tiene
-                # ubigeo=ubigeo
-            )
-            # Intento seguro de asignar address si el modelo lo soporta
-            if hasattr(new_provider, 'address'):
-                new_provider.address = address
-
+            new_provider = Provider(ruc=data['numero_documento'], name=name, address=address)
             db.session.add(new_provider)
             db.session.commit()
             response_data = new_provider.to_dict()
-
         except Exception as db_err:
-            print("Error guardando proveedor, enviando datos temporales:", db_err)
             db.session.rollback()
-            response_data = {
-                'id': None,
-                'document_number': data.get('numero_documento'),
-                'ruc': data.get('numero_documento'),
-                'name': name,
-                'address': address
-            }
+            response_data = {'id': None, 'ruc': data.get('numero_documento'), 'name': name, 'address': address}
 
-        # 4. Inyectar datos extra para el frontend
         response_data['address'] = address
         response_data['direccion'] = address
         response_data['ubigeo'] = ubigeo
-
         return jsonify(response_data)
 
-    except requests.exceptions.RequestException as e:
-        return jsonify(error=f"Error conectando a SUNAT: {str(e)}"), 404
     except Exception as e:
-        print(f"Error general en lookup: {e}")
         return jsonify(error=str(e)), 500
 
 
-# --- API 2: Obtener los catálogos ---
+# --- API 2: Catálogos ---
 @purchase_api.route('/catalogs')
 @requires_auth(required_permission='create:purchases')
 def get_purchase_catalogs(payload):
-    doc_types = DocumentType.query.all()
-    statuses = OrderStatus.query.all()
-    cost_centers = CostCenter.query.filter_by(status='Activo').all()
-
     return jsonify({
-        'document_types': [d.to_dict() for d in doc_types],
-        'statuses': [s.to_dict() for s in statuses],
-        'cost_centers': [cc.to_dict() for cc in cost_centers]
+        'document_types': [d.to_dict() for d in DocumentType.query.all()],
+        'statuses': [s.to_dict() for s in OrderStatus.query.all()],
+        'cost_centers': [cc.to_dict() for cc in CostCenter.query.filter_by(status='Activo').all()]
     })
 
 
@@ -100,39 +66,31 @@ def get_purchase_catalogs(payload):
 @requires_auth(required_permission='view:purchases')
 def get_purchases(payload):
     try:
-        # Usamos joinedload para optimizar la carga del proveedor y estado
         orders = PurchaseOrder.query.options(
             joinedload(PurchaseOrder.provider),
             joinedload(PurchaseOrder.status)
         ).order_by(PurchaseOrder.id.desc()).all()
-
         return jsonify([o.to_dict() for o in orders])
     except Exception as e:
         return jsonify(error=str(e)), 500
 
 
-# --- API 4: CREAR Órdenes (POST) ---
+# --- API 4: CREAR (POST) ---
 @purchase_api.route('/', methods=['POST'], strict_slashes=False)
 @requires_auth(required_permission='create:purchases')
 def create_purchase(payload):
     data = request.get_json()
 
-    # Validación simple
     if not data.get('provider_id') or not data.get('items'):
-        return jsonify(error="Faltan datos obligatorios (Proveedor o Items)"), 400
+        return jsonify(error="Faltan datos obligatorios"), 400
 
     try:
-        # --- CORRECCIÓN DE FECHA ---
-        t_date_str = data.get('transfer_date')
         t_date = None
-        if t_date_str:
-            # Convertimos el texto 'YYYY-MM-DD' a objeto date real
+        if data.get('transfer_date'):
             try:
-                t_date = datetime.strptime(t_date_str, '%Y-%m-%d').date()
+                t_date = datetime.strptime(data.get('transfer_date'), '%Y-%m-%d').date()
             except ValueError:
-                # Opcional: Si el formato viene mal
                 pass
-                # ---------------------------
 
         new_po = PurchaseOrder(
             document_number=data.get('document_number', 'S/N'),
@@ -142,22 +100,27 @@ def create_purchase(payload):
             status_id=data['status_id'],
             cost_center_id=data.get('cost_center_id'),
 
-            # --- NUEVOS CAMPOS ---
+            # --- NUEVO: TIPO DE ORDEN ---
+            order_type=data.get('order_type', 'OC'),  # 'OC' o 'OS'
+
+            # Campos Excel
             reference=data.get('reference'),
             attention=data.get('attention'),
             scope=data.get('scope'),
             payment_condition=data.get('payment_condition'),
             currency=data.get('currency', 'PEN'),
-            transfer_date=t_date
-            # ---------------------
+            transfer_date=t_date,
+
+            # Contacto específico
+            provider_phone=data.get('provider_phone'),
+            provider_email=data.get('provider_email')
         )
         db.session.add(new_po)
 
-        # Agregar Items
         for item_data in data['items']:
             new_item = PurchaseOrderItem(
                 order=new_po,
-                product_id=item_data.get('product_id'),  # Si envías IDs del catálogo
+                product_id=item_data.get('product_id'),
                 invoice_detail_text=item_data.get('invoice_detail_text', 'Item'),
                 unit_of_measure=item_data.get('um', 'UND'),
                 quantity=float(item_data.get('quantity') or 0),
@@ -170,8 +133,7 @@ def create_purchase(payload):
 
     except Exception as e:
         db.session.rollback()
-        import traceback
-        traceback.print_exc()  # Ver error en consola
+        print(f"Error creando OC: {e}")
         return jsonify(error=f"Error creando orden: {str(e)}"), 500
 
 
@@ -180,46 +142,8 @@ def create_purchase(payload):
 @requires_auth(required_permission='view:purchases')
 def get_purchase_by_id(order_id, payload):
     try:
-        order = PurchaseOrder.query.get_or_404(order_id)
-        return jsonify(order.to_dict())
+        return jsonify(PurchaseOrder.query.get_or_404(order_id).to_dict())
     except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-# --- API 6: GET Receivables ---
-@purchase_api.route('/receivable', methods=['GET'])
-@requires_auth(required_permission='manage:inventory')
-def get_receivable_orders(payload):
-    try:
-        orders = PurchaseOrder.query.join(OrderStatus).filter(
-            OrderStatus.name != 'Recibida',
-            OrderStatus.name != 'Anulada'
-        ).order_by(PurchaseOrder.id.desc()).all()
-        return jsonify([o.to_dict() for o in orders])
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-# --- API 7: Cancel ---
-@purchase_api.route('/<int:order_id>/cancel', methods=['PUT'], strict_slashes=False)
-@requires_auth(required_permission='create:purchases')
-def cancel_purchase(order_id, payload):
-    try:
-        order = PurchaseOrder.query.get_or_404(order_id)
-        if order.status.name == 'Recibida':
-            return jsonify(error="No se puede anular una orden recibida."), 400
-
-        anulada_status = OrderStatus.query.filter_by(name='Anulada').first()
-        if not anulada_status:
-            anulada_status = OrderStatus(name='Anulada')
-            db.session.add(anulada_status)
-            db.session.commit()
-
-        order.status_id = anulada_status.id
-        db.session.commit()
-        return jsonify(success=True)
-    except Exception as e:
-        db.session.rollback()
         return jsonify(error=str(e)), 500
 
 
@@ -231,16 +155,19 @@ def update_purchase(order_id, payload):
     try:
         order = PurchaseOrder.query.get_or_404(order_id)
         if order.status.name in ['Recibida', 'Anulada']:
-            return jsonify(error=f"No se puede editar orden {order.status.name}."), 400
+            return jsonify(error="No se puede editar orden cerrada."), 400
 
-        # Actualizar campos existentes
         if 'document_number' in data: order.document_number = data['document_number']
         if 'status_id' in data: order.status_id = data['status_id']
         if 'cost_center_id' in data: order.cost_center_id = data.get('cost_center_id')
         if 'provider_id' in data: order.provider_id = data['provider_id']
-        if 'document_type_id' in data: order.document_type_id = data['document_type_id']
 
-        # --- ACTUALIZAR NUEVOS CAMPOS ---
+        # Actualizar Tipo y Contacto
+        if 'order_type' in data: order.order_type = data['order_type']
+        if 'provider_phone' in data: order.provider_phone = data['provider_phone']
+        if 'provider_email' in data: order.provider_email = data['provider_email']
+
+        # Campos Excel
         if 'reference' in data: order.reference = data['reference']
         if 'attention' in data: order.attention = data['attention']
         if 'scope' in data: order.scope = data['scope']
@@ -249,10 +176,8 @@ def update_purchase(order_id, payload):
 
         if 'transfer_date' in data:
             val = data['transfer_date']
-            order.transfer_date = val if val else None
-        # --------------------------------
+            order.transfer_date = datetime.strptime(val, '%Y-%m-%d').date() if val else None
 
-        # Reemplazar Items si vienen en el payload
         if 'items' in data:
             PurchaseOrderItem.query.filter_by(order_id=order.id).delete()
             for item_data in data['items']:
@@ -273,25 +198,47 @@ def update_purchase(order_id, payload):
         return jsonify(error=str(e)), 500
 
 
-# --- API 9: Buscar Proveedores ---
+# --- API 9: Search Providers ---
 @purchase_api.route('/providers', methods=['GET'])
 @requires_auth(required_permission='create:purchases')
 def search_providers(payload):
-    """
-    Busca proveedores.
-    - Si 'q' está vacío: Devuelve los primeros 20.
-    - Si 'q' tiene texto: Filtra por nombre o RUC.
-    """
     q = request.args.get('q', '').strip()
-
     query = Provider.query
-
     if q:
-        query = query.filter(
-            (Provider.name.ilike(f'%{q}%')) |
-            (Provider.ruc.like(f'{q}%'))
-        )
-
+        query = query.filter((Provider.name.ilike(f'%{q}%')) | (Provider.ruc.like(f'{q}%')))
     providers = query.order_by(Provider.name).limit(20).all()
-
     return jsonify([p.to_dict() for p in providers])
+
+
+# --- AGREGAR ESTO EN routes/purchase_api.py ---
+from sqlalchemy import func
+
+
+@purchase_api.route('/next-correlative/<string:series>', methods=['GET'])
+@requires_auth(required_permission='create:purchases')
+def get_next_correlative(series, payload):
+    """
+    Busca la última orden que empiece con la serie dada (ej: '026')
+    y devuelve el siguiente número disponible.
+    """
+    try:
+        # Buscamos la orden más reciente cuyo document_number empiece con "026-"
+        last_order = PurchaseOrder.query.filter(
+            PurchaseOrder.document_number.like(f"{series}-%")
+        ).order_by(PurchaseOrder.id.desc()).first()
+
+        if last_order:
+            # Extraemos el número (ej: de "026-045" sacamos "045")
+            try:
+                parts = last_order.document_number.split('-')
+                if len(parts) == 2:
+                    last_num = int(parts[1])
+                    return jsonify({'next_number': last_num + 1})
+            except ValueError:
+                pass
+
+        # Si no existe ninguna orden con esa serie, empezamos en 1
+        return jsonify({'next_number': 1})
+
+    except Exception as e:
+        return jsonify(error=str(e)), 500
