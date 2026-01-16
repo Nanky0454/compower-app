@@ -218,7 +218,7 @@ async function fetchNextCorrelative() {
 }
 
 watch(() => formData.gre_type, (newType) => {
-  formData.serie = 'T002'
+  formData.serie = 'T001'
 })
 
 watch(() => formData.serie, async (newSerie) => {
