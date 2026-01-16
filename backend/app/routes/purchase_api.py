@@ -44,7 +44,7 @@ def lookup_provider(ruc, payload):
             new_provider = Provider(
                 ruc=data['numero_documento'],
                 name=name,
-                # address=address, # Descomenta si tu modelo lo tiene
+                address=address, # Descomenta si tu modelo lo tiene
                 # ubigeo=ubigeo
             )
             # Intento seguro de asignar address si el modelo lo soporta
@@ -62,7 +62,8 @@ def lookup_provider(ruc, payload):
                 'id': None,
                 'document_number': data.get('numero_documento'),
                 'ruc': data.get('numero_documento'),
-                'name': name
+                'name': name,
+                'address': address
             }
 
         # 4. Inyectar datos extra para el frontend

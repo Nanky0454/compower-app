@@ -5,7 +5,9 @@ class Provider(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ruc = db.Column(db.String(11), unique=True, nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    # Aquí se podrían añadir más datos: dirección, teléfono, etc.
+
+    address = db.Column(db.String(255), nullable=True)
+
 
     def to_dict(self):
-        return {'id': self.id, 'ruc': self.ruc, 'name': self.name}
+        return {'id': self.id, 'ruc': self.ruc, 'name': self.name, 'address': self.address}
