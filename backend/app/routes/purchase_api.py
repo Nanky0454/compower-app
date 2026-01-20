@@ -68,7 +68,8 @@ def get_purchases(payload):
     try:
         orders = PurchaseOrder.query.options(
             joinedload(PurchaseOrder.provider),
-            joinedload(PurchaseOrder.status)
+            joinedload(PurchaseOrder.status),
+            joinedload(PurchaseOrder.cost_center)
         ).order_by(PurchaseOrder.id.desc()).all()
         return jsonify([o.to_dict() for o in orders])
     except Exception as e:
@@ -106,14 +107,12 @@ def create_purchase(payload):
             # Campos Excel
             reference=data.get('reference'),
             attention=data.get('attention'),
+            provider_contact=data.get('provider_contact'),
             scope=data.get('scope'),
             payment_condition=data.get('payment_condition'),
             currency=data.get('currency', 'PEN'),
             transfer_date=t_date,
 
-            # Contacto específico
-            provider_phone=data.get('provider_phone'),
-            provider_email=data.get('provider_email')
         )
         db.session.add(new_po)
 
@@ -170,6 +169,7 @@ def update_purchase(order_id, payload):
         # Campos Excel
         if 'reference' in data: order.reference = data['reference']
         if 'attention' in data: order.attention = data['attention']
+        if 'provider_contact' in data: order.provider_contact = data['provider_contact']
         if 'scope' in data: order.scope = data['scope']
         if 'payment_condition' in data: order.payment_condition = data['payment_condition']
         if 'currency' in data: order.currency = data['currency']
@@ -241,4 +241,48 @@ def get_next_correlative(series, payload):
         return jsonify({'next_number': 1})
 
     except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+# --- API 6: GET Receivables (ESTA ES LA QUE TE FALTA) ---
+@purchase_api.route('/receivable', methods=['GET'])
+@requires_auth(required_permission='manage:inventory')
+def get_receivable_orders(payload):
+    try:
+        # Buscamos órdenes que NO estén ni Recibidas ni Anuladas
+        orders = PurchaseOrder.query.options(
+            joinedload(PurchaseOrder.provider),
+            joinedload(PurchaseOrder.cost_center),
+            joinedload(PurchaseOrder.status)
+        ).join(OrderStatus).filter(
+            OrderStatus.name != 'Recibida',
+            OrderStatus.name != 'Anulada',
+            OrderStatus.name != 'Borrador'
+        ).order_by(PurchaseOrder.id.desc()).all()
+
+        return jsonify([o.to_dict() for o in orders])
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+# --- API 7: Cancel (TAMBIÉN FALTA ESTA) ---
+@purchase_api.route('/<int:order_id>/cancel', methods=['PUT'], strict_slashes=False)
+@requires_auth(required_permission='create:purchases')
+def cancel_purchase(order_id, payload):
+    try:
+        order = PurchaseOrder.query.get_or_404(order_id)
+        if order.status.name == 'Recibida':
+            return jsonify(error="No se puede anular una orden recibida."), 400
+
+        anulada_status = OrderStatus.query.filter_by(name='Anulada').first()
+        if not anulada_status:
+            anulada_status = OrderStatus(name='Anulada')
+            db.session.add(anulada_status)
+            db.session.commit()
+
+        order.status_id = anulada_status.id
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        db.session.rollback()
         return jsonify(error=str(e)), 500

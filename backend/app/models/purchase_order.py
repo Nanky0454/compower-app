@@ -40,11 +40,11 @@ class PurchaseOrderItem(db.Model):
         product_sku = self.product.sku if self.product else "N/A"
         return {
             'id': self.id,
-            'id_oc': self.order_id,
-            'descripcion': self.invoice_detail_text,
-            'unidad': self.unit_of_measure,
-            'cant': float(self.quantity),
-            'pu': float(self.unit_price),
+            'order_id': self.order_id,
+            'invoice_detail_text': self.invoice_detail_text,
+            'unit_of_measure': self.unit_of_measure,
+            'quantity': float(self.quantity),
+            'unit_price': float(self.unit_price),
             'total_line': float(self.quantity * self.unit_price),
             'product_name': product_name,
             'product_sku': product_sku
@@ -102,7 +102,7 @@ class PurchaseOrder(db.Model):
             'contacto': self.provider_contact or 'N/A',
 
             'id_cc': self.cost_center_id,
-            'cost_center_name': self.cost_center.name if self.cost_center else 'N/A',
+            'cost_center_name': self.cost_center.code if self.cost_center else 'N/A',
             'referencia': self.reference,
             'atencion': self.attention,
             'fecha_emision': self.created_at.isoformat(),

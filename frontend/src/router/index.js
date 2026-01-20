@@ -12,6 +12,7 @@ import UnitsConfigView  from "@/views/admin/UnitsConfigView.vue";
 
 import PurchasesView from '@/views/purchasing/PurchasesView.vue'
 import PurchaseDetailView from '@/views/purchasing/PurchaseDetailView.vue'
+import EditPurchaseView from '@/views/purchasing/EditPurchaseView.vue'
 
 import CatalogCategoriesView from '@/views/catalog/CatalogCategoriesView.vue'
 import CatalogProductsView from '@/views/catalog/CatalogProductsView.vue'
@@ -84,6 +85,12 @@ const routes = [
     name: 'PurchaseDetail',
     component: PurchaseDetailView,
     meta: { title: 'Detalle de Compra' }
+  },
+    {
+    path: '/purchases/:id/edit',
+    name: 'EitPurchase',
+    component: EditPurchaseView,
+    meta: { title: 'Editar Orden' }
   },
   // Catálogo
   {

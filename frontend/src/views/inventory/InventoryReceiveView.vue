@@ -179,11 +179,11 @@ async function handleSubmitReception() {
         <CardContent class="grid grid-cols-3 gap-4">
           <div>
             <p class="text-sm font-medium text-gray-500">Proveedor</p>
-            <p class="font-semibold">{{ order.provider }}</p>
+            <p class="font-semibold">{{ order.provider_name }}</p>
           </div>
           <div>
             <p class="text-sm font-medium text-gray-500">Centro de Costo</p>
-            <p class="font-semibold">{{ order.cost_center }}</p>
+            <p class="font-semibold">{{ order.cost_center_name }}</p>
           </div>
           <div>
             <Label for="warehouse" class="text-sm font-medium text-gray-700">Almacén de Destino</Label>

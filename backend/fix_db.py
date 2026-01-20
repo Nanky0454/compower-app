@@ -4,14 +4,16 @@ from sqlalchemy import text
 app = create_app()
 
 with app.app_context():
-    print("--- 🛠️  AGREGANDO TIPO (OC/OS) A LA BASE DE DATOS ---")
+    print("--- 🛠️  AGREGANDO COLUMNA ÚNICA DE CONTACTO ---")
 
-    # Agregamos la columna order_type con valor por defecto 'OC'
-    sql = "ALTER TABLE purchase_orders ADD COLUMN order_type VARCHAR(5) DEFAULT 'OC'"
+    # Solo agregamos la columna nueva.
+    # Las viejas (phone/email) se quedarán ahí ocultas para no romper datos antiguos,
+    # pero ya no las usaremos.
+    sql = "ALTER TABLE purchase_orders ADD COLUMN provider_contact VARCHAR(150)"
 
     try:
         db.session.execute(text(sql))
-        print(f"✅ Columna 'order_type' agregada con éxito.")
+        print(f"✅ Columna 'provider_contact' agregada.")
     except Exception as e:
         if "duplicate column" in str(e).lower():
             print(f"⚠️  La columna ya existía.")
