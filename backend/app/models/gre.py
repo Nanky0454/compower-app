@@ -52,6 +52,8 @@ class Gre(db.Model):
     # --- Relaciones y Metadatos ---
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    status = db.Column(db.String(20), default='emitido', nullable=False)
+
     # Relación con items
     items = db.relationship('GreDetail', backref='gre', cascade='all, delete-orphan')
 
@@ -61,7 +63,7 @@ class Gre(db.Model):
             "id": self.id,
             "serie": self.serie,
             "numero": self.numero,
-
+            "status": self.status,
             # Incluimos los nuevos campos en la respuesta
             "gre_type": self.gre_type,
             "remitente_original_ruc": self.remitente_original_ruc,

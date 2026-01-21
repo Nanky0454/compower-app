@@ -22,11 +22,8 @@ class StockTransfer(db.Model):
     status = db.Column(db.String(50), nullable=False, default='Completada')
     user_id = db.Column(db.String(255), nullable=False)
 
-    # --- RELACIÓN CON CENTRO DE COSTOS (La clave del arreglo) ---
-    # Coincide con el ALTER TABLE que hiciste
+    # --- RELACIÓN CON CENTRO DE COSTOS ---
     cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
-
-    # Usamos string 'CostCenter' para evitar errores de importación circular
     cost_center = db.relationship('CostCenter', backref='stock_transfers')
 
     # Datos de Guía de Remisión (GRE)
@@ -41,10 +38,22 @@ class StockTransfer(db.Model):
         origin_name = self.origin_warehouse.name if self.origin_warehouse else 'N/A'
         dest_name = self.destination_warehouse.name if self.destination_warehouse else 'N/A'
 
-        # Validación extra: si cost_center es None, devuelve 'N/A'
         cc_name = 'N/A'
         if self.cost_center:
             cc_name = self.cost_center.code
+
+        # --- MODIFICACIÓN: BUSCAR EL ID DE LA GRE ---
+        gre_id = None
+        # Si la transferencia tiene serie y número, buscamos su ID en la tabla GRE
+        if self.gre_series and self.gre_number:
+            # Importación local para evitar 'Circular Import Error'
+            from .gre import Gre
+
+            # Buscamos la guía que coincida
+            gre_record = Gre.query.filter_by(serie=self.gre_series, numero=self.gre_number).first()
+            if gre_record:
+                gre_id = gre_record.id
+        # ---------------------------------------------
 
         return {
             'id': self.id,
@@ -53,36 +62,30 @@ class StockTransfer(db.Model):
             'destination_warehouse': dest_name,
             'destination_external': self.destination_external_address,
             'status': self.status,
-            'cost_center': cc_name,  # <-- Ahora seguro
+            'cost_center': cc_name,
             'items': [item.to_dict() for item in self.items],
+
+            # Datos GRE
+            'gre_id': gre_id,  # <--- AHORA EL FRONTEND RECIBIRÁ ESTE DATO
             'gre_series': self.gre_series,
             'gre_number': self.gre_number,
             'gre_ticket': self.gre_ticket
         }
 
 
-# Modelo 2: Los detalles (items) de la transferencia
+# Modelo 2: Los detalles (items) de la transferencia (SIN CAMBIOS)
 class StockTransferItem(db.Model):
     __tablename__ = 'stock_transfer_items'
 
     id = db.Column(db.Integer, primary_key=True)
     transfer_id = db.Column(db.Integer, db.ForeignKey('stock_transfers.id'), nullable=False)
-
-    # nullable=True para mantener historial aunque se borre el producto
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
-
-    # Snapshots (Guardarán el texto para siempre)
     product_name_snapshot = db.Column(db.String(255), nullable=True)
     product_sku_snapshot = db.Column(db.String(100), nullable=True)
-
     quantity = db.Column(db.Numeric(10, 2), nullable=False)
-
     product = db.relationship('Product')
 
     def to_dict(self):
-        # 1. Usar snapshot histórico si existe
-        # 2. Si no, usar el nombre actual del producto
-        # 3. Si no, poner aviso de eliminado
         real_name = self.product_name_snapshot
         if not real_name and self.product:
             real_name = self.product.name

@@ -337,3 +337,89 @@ def download_gre_pdf(payload, transfer_id):
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+@gre_bp.route('/anular/<int:gre_id>', methods=['POST'])
+@requires_auth(required_permission='manage:transfers')
+def anular_guia(payload, gre_id):
+    user_id = payload['sub']
+
+    # 1. VERIFICACIÓN DE ROL ADMIN
+    # Revisa en Auth0 Rules el namespace exacto. Usualmente es algo como 'https://tudominio/roles'
+    # Aquí buscaremos en varios lugares comunes por seguridad.
+    NAMESPACE = 'https://appcompower.com'  # <--- Asegúrate que coincida con tu Auth0
+
+    roles = payload.get(f'{NAMESPACE}/roles', [])
+    permissions = payload.get('permissions', [])
+
+    # Verificamos si es admin
+    is_admin = 'admin' in roles or 'Admin' in roles
+
+    if not is_admin:
+        return jsonify({"error": "ACCESO DENEGADO: Solo los administradores pueden anular guías."}), 403
+
+    try:
+        # 2. Buscar la Guía
+        gre = Gre.query.get_or_404(gre_id)
+
+        if gre.status == 'anulado':
+            return jsonify({"error": "Esta guía ya se encuentra anulada."}), 400
+
+        # 3. Lógica de Devolución de Stock
+        # Solo devolvemos stock si es GUÍA REMITENTE (la que descuenta inventario)
+        if gre.gre_type == 'remitente':
+
+            # Buscamos la Transferencia asociada usando Serie y Número
+            transfer = StockTransfer.query.filter_by(
+                gre_series=gre.serie,
+                gre_number=str(gre.numero)  # <--- AGREGAR str() AQUÍ
+            ).first()
+
+            if transfer:
+                transfer.status = 'Anulada'
+
+                # Iterar items para devolver stock al almacén de origen
+                for item in transfer.items:
+                    # Buscar el registro de stock actual
+                    stock_entry = InventoryStock.query.filter_by(
+                        product_id=item.product_id,
+                        warehouse_id=transfer.origin_warehouse_id
+                    ).first()
+
+                    if stock_entry:
+                        qty_to_return = float(item.quantity)
+                        current_qty = float(stock_entry.quantity)
+
+                        # Aumentar Stock (Devolución)
+                        stock_entry.quantity = current_qty + qty_to_return
+
+                        # Registrar en Kardex
+                        kardex = InventoryTransaction(
+                            product_id=item.product_id,
+                            warehouse_id=transfer.origin_warehouse_id,
+                            quantity_change=qty_to_return,  # Positivo porque reingresa
+                            new_quantity=stock_entry.quantity,
+                            type="Anulación GRE",
+                            user_id=user_id,
+                            reference=f"Anul. {gre.serie}-{gre.numero}"
+                        )
+                        db.session.add(kardex)
+            else:
+                # Agrega este print para ver en la consola si está fallando la búsqueda
+                print(f"ERROR: No se encontró transferencia para GRE {gre.serie}-{gre.numero}")
+
+        # 4. Actualizar Estado de la Guía
+        gre.status = 'anulado'
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"Guía {gre.serie}-{gre.numero} ANULADA correctamente. El stock ha sido retornado."
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
