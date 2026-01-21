@@ -102,3 +102,4 @@ def get_stock_movement_report():
         pdf = HTML(string=html).write_pdf()
         return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                          download_name='Stock_Reporte.pdf')
+
