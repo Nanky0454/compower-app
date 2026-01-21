@@ -26,8 +26,8 @@ import CreateTransferView from '@/views/inventory/CreateTransferView.vue'
 import WarehouseView from '@/views/inventory/WarehouseView.vue'
 import InventoryAdjustmentView from '@/views/inventory/InventoryAdjustmentView.vue'
 import TreasuryConfigView from "@/views/admin/TreasuryConfigView.vue";
+import RegisterInventoryView from "@/views/inventory/RegisterInventoryView.vue";
 
-import EmployeesView from '@/views/rrhh/EmployeesView.vue'
 
 const routes = [
   {
@@ -129,6 +129,12 @@ const routes = [
     name: 'StockReport',
     component: StockReportView,
     meta: { title: 'Reportes y Maestro' }
+  },
+    {
+    path: '/inventory/stock-report/register',
+    name: 'RegisterInventoryView',
+    component: RegisterInventoryView,
+    meta: { title: 'Registrar ingreso' }
   },
   {
     path: '/inventory/transfers',

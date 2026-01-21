@@ -17,6 +17,7 @@ from .models.purchase_order import PurchaseOrder, DocumentType, OrderStatus, Pur
 from .models.stock_transfer import StockTransfer, StockTransferItem
 from .models.employee import Employee, EmployeeLicense
 from .models.attendance import AttendanceRecord
+from .models.reception import ProductReceipt, ProductReceiptItem
 from .services.auth_service import AuthError, requires_auth
 
 

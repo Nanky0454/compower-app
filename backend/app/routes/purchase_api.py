@@ -1,4 +1,8 @@
-from flask import Blueprint, jsonify, request, current_app
+import base64
+
+from flask import Blueprint, jsonify, request, current_app, send_file, render_template
+from weasyprint import HTML
+
 from ..extensions import db
 from ..models.provider import Provider
 from ..models.purchase_order import PurchaseOrder, DocumentType, OrderStatus, PurchaseOrderItem
@@ -7,6 +11,9 @@ import requests
 from ..models.cost_center import CostCenter
 from sqlalchemy.orm import joinedload
 from datetime import datetime
+from fpdf import FPDF
+import os
+import io
 
 purchase_api = Blueprint('purchase_api', __name__)
 
@@ -255,10 +262,9 @@ def get_receivable_orders(payload):
             joinedload(PurchaseOrder.cost_center),
             joinedload(PurchaseOrder.status)
         ).join(OrderStatus).filter(
-            OrderStatus.name != 'Recibida',
-            OrderStatus.name != 'Anulada',
-            OrderStatus.name != 'Borrador'
-        ).order_by(PurchaseOrder.id.desc()).all()
+            OrderStatus.name == 'Aprobada',
+            PurchaseOrder.order_type == 'OC'
+        ) .order_by(PurchaseOrder.id.desc()).all()
 
         return jsonify([o.to_dict() for o in orders])
     except Exception as e:
@@ -286,3 +292,95 @@ def cancel_purchase(order_id, payload):
     except Exception as e:
         db.session.rollback()
         return jsonify(error=str(e)), 500
+
+
+@purchase_api.route('/<int:order_id>/pdf', methods=['GET'])
+@requires_auth(required_permission='view:purchases')
+def download_purchase_pdf(order_id, payload):
+    order = PurchaseOrder.query.get_or_404(order_id)
+
+    # 1. Logo Base64
+    logo_path = os.path.join(current_app.instance_path, 'logo_v2.png')
+    logo_b64 = ""
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as image_file:
+            logo_b64 = base64.b64encode(image_file.read()).decode('utf-8')
+
+    # 2. Lógica de Condiciones (Tu requerimiento específico)
+    # Lista maestra de textos fijos
+    condiciones = [
+        f"Forma de Pago: {order.payment_condition or '-'}",
+        f"Fecha de traslado y ejecucion: {order.transfer_date or '-'}",
+        f"Tipo de moneda: {order.currency}",
+        # Punto 4 (Solo OS)
+        "El contratista sera responsable de proveer los implementos de seguridad, SCTR y documentos de SST para su respectivo llenado a su personal.",
+        # Punto 5
+        "Ambas partes acuerdan que toda información y documentación será considerada confidencial, no será divulgada a terceros sin consentimiento, no utilizarla para fines distintos a los establecidos en esta orden de compra.",
+        # Punto 6
+        "El contratista se compromete a cumplir con todas la leyes, regulaciones y normas de medio ambiente según apliquen en esta orden de compra.",
+        # Punto 7
+        "El número de esta orden de compra deberá estar claramente indicado en las facturas. Enviar facturas a: mayala@compower.pe, jbarbachan@compower.pe."
+    ]
+
+    # Si es OC (Compra), eliminamos el índice 3 (Punto 4)
+    # Al renderizar en el HTML con loop.index, se re-numeran automáticamente (1, 2, 3, 4, 5...)
+    if order.order_type == 'OC':
+        condiciones.pop(3)
+
+    # 3. Preparar Items
+    items_data = []
+    total_neto = 0
+    for item in order.items:
+        subtotal = float(item.quantity) * float(item.unit_price)
+        total_neto += subtotal
+        items_data.append({
+            'descripcion': item.invoice_detail_text,
+            'unidad': item.unit_of_measure,
+            'cantidad': float(item.quantity),
+            'pu': float(item.unit_price),
+            'total': subtotal
+        })
+
+    igv = total_neto * 0.18
+    total_gen = total_neto + igv
+
+    # 4. Contexto para el Template
+    context = {
+        'logo_b64': logo_b64,
+        'titulo_doc': "ORDEN DE SERVICIO" if order.order_type == 'OS' else "ORDEN DE COMPRA",
+        'tipo': order.order_type,
+        'codigo': order.document_number,
+
+        'proveedor_nombre': order.provider.name,
+        'proveedor_direccion': (order.provider.address or '-')[:60],  # Truncar si es muy largo
+        'proveedor_ruc': order.provider.ruc,
+        'contacto': order.provider_contact or '-',
+
+        'referencia': order.reference or '-',
+        'atencion': order.attention or '-',
+        'cc_codigo': order.cost_center.code if order.cost_center else '-',  # CÓDIGO
+        'fecha_emision': order.created_at.strftime('%d/%m/%Y'),
+
+        'items': items_data,
+        'alcance': order.scope,
+
+        'simbolo': 'S/.' if order.currency == 'PEN' else '$',
+        'subtotal': total_neto,
+        'igv': igv,
+        'total': total_gen,
+
+        'condiciones': condiciones
+    }
+
+    # 5. Generar PDF con WeasyPrint
+    html_string = render_template('purchase_order_weasy.html', **context)
+    pdf_bytes = HTML(string=html_string).write_pdf()
+
+    # 6. Enviar archivo
+    safe_name = str(order.document_number).replace('/', '-')
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Orden_{safe_name}.pdf"
+    )

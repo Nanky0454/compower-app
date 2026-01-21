@@ -44,7 +44,7 @@ class StockTransfer(db.Model):
         # Validación extra: si cost_center es None, devuelve 'N/A'
         cc_name = 'N/A'
         if self.cost_center:
-            cc_name = self.cost_center.name
+            cc_name = self.cost_center.code
 
         return {
             'id': self.id,

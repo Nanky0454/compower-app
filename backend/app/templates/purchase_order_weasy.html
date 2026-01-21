@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm 1.5cm; /* Márgenes ajustados al formato */
+            @bottom-right {
+                content: "Página " counter(page);
+                font-family: Arial, sans-serif;
+                font-size: 8pt;
+                font-style: italic;
+            }
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 9pt;
+            line-height: 1.2;
+            color: #000;
+        }
+
+        /* --- HEADER --- */
+        .header-table { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+        .header-table td { vertical-align: top; }
+
+        .logo-img { width: 140px; height: auto; display: block; }
+
+        .company-title {
+            font-size: 11pt;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .company-ruc {
+            font-size: 10pt;
+            font-weight: bold;
+        }
+
+        /* Cuadro Registro (Derecha) */
+        .reg-box {
+            border: 1px solid #000;
+            width: 220px;
+            text-align: center;
+            border-collapse: collapse;
+            float: right;
+        }
+        .reg-box td {
+            border: 1px solid #000;
+            padding: 3px;
+            font-size: 8pt;
+            font-weight: bold;
+            background-color: #fff;
+        }
+
+        /* --- DATOS GENERALES --- */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 8pt;
+        }
+        .info-table td { padding: 2px 4px; }
+        .label { font-weight: bold; width: 90px; }
+        .val { width: 220px; } /* Ajuste fino */
+
+        /* --- ITEMS --- */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            font-size: 8pt;
+        }
+        .items-table th {
+            background-color: #e0e0e0;
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .items-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            vertical-align: top;
+        }
+        .col-center { text-align: center; }
+        .col-right { text-align: right; }
+
+        /* --- ALCANCE --- */
+        .scope-row td {
+            background-color: #fff;
+            padding: 5px;
+            text-align: left;
+            border-top: none; /* Unir visualmente con la tabla */
+        }
+
+        /* --- TOTALES --- */
+        .totals-table {
+            width: 250px;
+            border-collapse: collapse;
+            margin-left: auto; /* Alinear derecha */
+            font-size: 8pt;
+        }
+        .totals-table td {
+            padding: 3px 5px;
+            border: 1px solid #000; /* Sin bordes internos si prefieres, el formato tenía */
+        }
+        .total-label { text-align: right; font-weight: bold; width: 100px; }
+        .total-val { text-align: right; width: 100px; }
+
+        /* --- CONDICIONES --- */
+        .conditions { margin-top: 15px; font-size: 8pt; page-break-inside: avoid; }
+        .cond-title { font-weight: bold; margin-bottom: 5px; text-decoration: underline; }
+        .cond-list { list-style: none; padding: 0; margin: 0; }
+        .cond-item { display: flex; margin-bottom: 2px; text-align: justify; }
+        .cond-num { width: 20px; font-weight: bold; flex-shrink: 0; }
+
+        /* --- NOTAS Y FIRMAS --- */
+        .footer-notes {
+            margin-top: 15px;
+            font-size: 7pt;
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        .signatures {
+            margin-top: 40px;
+            width: 100%;
+            border-collapse: collapse;
+            page-break-inside: avoid;
+        }
+        .sig-box {
+            width: 30%;
+            text-align: center;
+            vertical-align: top;
+            padding: 0 10px;
+        }
+        .sig-line {
+            border-top: 1px solid #000;
+            margin: 0 auto 5px auto;
+            width: 90%;
+        }
+        .sig-name { font-size: 7pt; font-weight: bold; display: block; }
+        .sig-role { font-size: 7pt; display: block; }
+
+    </style>
+</head>
+<body>
+
+    <table class="header-table">
+        <tr>
+            <td style="width: 60%">
+                <img src="data:image/png;base64,{{ logo_b64 }}" class="logo-img" alt="Logo">
+                <div class="company-title">COMPOWER INGENIERÍA<br>ESPECIALIZADA SAC</div>
+                <div class="company-ruc">RUC: 20522348831</div>
+            </td>
+            <td style="width: 40%; vertical-align: top;">
+                <table class="reg-box">
+                    <tr><td>REGISTRO: REG-LOG-003</td></tr>
+                    <tr><td style="padding: 8px 0;">{{ titulo_doc }} {{ codigo }}</td></tr>
+                    <tr><td>Versión: 05</td></tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <table class="info-table">
+        <tr>
+            <td class="label">Señores:</td>
+            <td class="val">{{ proveedor_nombre }}</td>
+            <td class="label">Referencia:</td>
+            <td>{{ referencia }}</td>
+        </tr>
+        <tr>
+            <td class="label">Dirección:</td>
+            <td class="val">{{ proveedor_direccion }}</td>
+            <td class="label">Atención:</td>
+            <td>{{ atencion }}</td>
+        </tr>
+        <tr>
+            <td class="label">RUC:</td>
+            <td class="val">{{ proveedor_ruc }}</td>
+            <td class="label">Teléfono/Email:</td>
+            <td>{{ contacto }}</td>
+        </tr>
+        <tr>
+            <td class="label">Centro de Costo:</td>
+            <td class="val">{{ cc_codigo }}</td>
+            <td class="label">Fecha Emisión:</td>
+            <td>{{ fecha_emision }}</td>
+        </tr>
+    </table>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 5%">ITEM</th>
+                <th style="width: 53%">DESCRIPCIÓN</th>
+                <th style="width: 10%">UNIDAD</th>
+                <th style="width: 10%">CANT</th>
+                <th style="width: 11%">PU</th>
+                <th style="width: 11%">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td class="col-center">{{ loop.index }}</td>
+                <td style="text-align: justify;">{{ item.descripcion }}</td>
+                <td class="col-center">{{ item.unidad }}</td>
+                <td class="col-center">{{ "%.2f"|format(item.cantidad) }}</td>
+                <td class="col-right">{{ "%.2f"|format(item.pu) }}</td>
+                <td class="col-right">{{ "%.2f"|format(item.total) }}</td>
+            </tr>
+            {% endfor %}
+
+            {% if tipo == 'OS' and alcance %}
+            <tr class="scope-row">
+                <td colspan="6">
+                    <strong>ALCANCE / DETALLE TÉCNICO:</strong><br>
+                    <div style="white-space: pre-wrap; font-size: 8pt; margin-top: 2px;">{{ alcance }}</div>
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <table class="totals-table">
+        <tr>
+            <td class="total-label">Sub Total</td>
+            <td class="total-val">{{ simbolo }} {{ "%.2f"|format(subtotal) }}</td>
+        </tr>
+        <tr>
+            <td class="total-label">IGV (18%)</td>
+            <td class="total-val">{{ simbolo }} {{ "%.2f"|format(igv) }}</td>
+        </tr>
+        <tr>
+            <td class="total-label">TOTAL</td>
+            <td class="total-val">{{ simbolo }} {{ "%.2f"|format(total) }}</td>
+        </tr>
+    </table>
+
+    <div class="conditions">
+        <div class="cond-title">Condiciones Comerciales:</div>
+        {% for cond in condiciones %}
+        <div class="cond-item">
+            <div class="cond-num">{{ loop.index }}.</div>
+            <div>{{ cond }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="footer-notes">
+        <div>Nota: La orden de compra es nula sin las firmas del jefe(a) de operaciones y de la gerencia.</div>
+        <div>Toda factura debe incluir el numero de orden de compra y centro de costo correspondiente.</div>
+        <div>Solo se recibiran documentos de pago (facturas) los dias miercoles de 09:00 am a 4:00 pm. De enviar el documento fuera de dia indicada será programada para la semana siguiente.</div>
+    </div>
+
+    <table class="signatures">
+        <tr>
+            <td class="sig-box">
+                <div class="sig-line"></div>
+                <span class="sig-name">JOSE BARBACHAN HERNANDEZ</span>
+                <span class="sig-role">LOGISTICA - Elaborado</span>
+            </td>
+            <td class="sig-box">
+                <div class="sig-line"></div>
+                <span class="sig-name">MARIA AYALA BARRIOS</span>
+                <span class="sig-role">JEFE DE INGENIERIA - Autorización 1</span>
+            </td>
+            <td class="sig-box">
+                <div class="sig-line"></div>
+                <span class="sig-name">JUAN CARLOS FIGUEROA S.</span>
+                <span class="sig-role">GERENTE GENERAL - Autorización 2</span>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

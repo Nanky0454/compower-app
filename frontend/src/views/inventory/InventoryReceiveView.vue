@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card/i
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
 import { Button } from '@/components/ui/button/index.js'
 import { Input } from '@/components/ui/input/index.js'
+import { Label } from '@/components/ui/label/index.js' // <--- 1. IMPORTAR LABEL
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Loader2, Check, ChevronsUpDown, Plus } from 'lucide-vue-next'
 
@@ -30,6 +31,7 @@ const isSubmitting = ref(false)
 
 // Refs del Formulario
 const selectedWarehouse = ref(null)
+const invoiceNumber = ref('') // <--- 2. NUEVA VARIABLE PARA FACTURA
 const receptionItems = ref([])
 
 const isProductModalOpen = ref(false)
@@ -71,14 +73,13 @@ onMounted(async () => {
     })
     categories.value = await catRes.json()
 
-    // --- CAMBIO: Añadir 'location' al inicializar los items ---
     receptionItems.value = order.value.items.map(item => ({
       po_item_id: item.id,
       invoice_detail_text: item.invoice_detail_text,
       quantity_ordered: item.quantity,
       product_id: null,
       quantity_received: item.quantity,
-      location: '', // <-- Campo añadido
+      location: '',
     }))
 
   } catch (e) {
@@ -90,7 +91,6 @@ onMounted(async () => {
 
 function handleProductSelect(item, selectedProductId) {
   item.product_id = selectedProductId
-  // --- CAMBIO: Pre-rellenar ubicación si el producto ya la tiene ---
   const product = productCatalog.value.find(p => p.id === selectedProductId)
   if (product && product.location) {
     item.location = product.location
@@ -114,11 +114,19 @@ async function handleSubmitReception() {
   isSubmitting.value = true
   error.value = null
 
+  // Validación básica
   if (!selectedWarehouse.value) {
     error.value = "Debes seleccionar un almacén de destino."
     isSubmitting.value = false
     return
   }
+
+  if (!invoiceNumber.value.trim()) {
+    error.value = "Debes ingresar el número de Factura o Guía de Remisión."
+    isSubmitting.value = false
+    return
+  }
+
   for (const item of receptionItems.value) {
     if (!item.product_id) {
       error.value = `Debes asignar un producto del catálogo al item "${item.invoice_detail_text}".`
@@ -129,15 +137,16 @@ async function handleSubmitReception() {
 
   try {
     const token = await getAccessTokenSilently()
-    // --- CAMBIO: Incluir 'location' en el payload ---
+
     const payload = {
       warehouse_id: selectedWarehouse.value,
       order_id: order.value.id,
+      invoice_number: invoiceNumber.value, // <--- 3. ENVIAR FACTURA AL BACKEND
       items: receptionItems.value.map(item => ({
         po_item_id: item.po_item_id,
         product_id: item.product_id,
         quantity_received: item.quantity_received,
-        location: item.location, // <-- Campo añadido
+        location: item.location,
       }))
     }
 
@@ -169,37 +178,51 @@ async function handleSubmitReception() {
 
     <div v-else-if="order" class="space-y-6">
       <h1 class="text-3xl font-bold">
-        Recepcionar Orden: {{ order.document_number }}
+        Recepcionar Orden: {{ order.codigo }}
       </h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>Datos de la Orden</CardTitle>
+          <CardTitle>Datos de la Recepción</CardTitle>
         </CardHeader>
-        <CardContent class="grid grid-cols-3 gap-4">
-          <div>
-            <p class="text-sm font-medium text-gray-500">Proveedor</p>
-            <p class="font-semibold">{{ order.provider_name }}</p>
+        <CardContent class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+          <div class="space-y-1">
+            <Label class="text-xs font-bold text-gray-500 uppercase">Proveedor</Label>
+            <p class="font-semibold text-gray-900">{{ order.provider_name }}</p>
           </div>
-          <div>
-            <p class="text-sm font-medium text-gray-500">Centro de Costo</p>
-            <p class="font-semibold">{{ order.cost_center_name }}</p>
+
+          <div class="space-y-1">
+            <Label class="text-xs font-bold text-gray-500 uppercase">Centro de Costo</Label>
+            <p class="font-semibold text-gray-900">{{ order.cost_center_name }}</p>
           </div>
-          <div>
-            <Label for="warehouse" class="text-sm font-medium text-gray-700">Almacén de Destino</Label>
+
+          <div class="space-y-1">
+            <Label for="invoice" class="text-xs font-bold text-gray-500 uppercase">Nro. Factura / Guía</Label>
+            <Input
+              id="invoice"
+              v-model="invoiceNumber"
+              placeholder="Ej: F001-4520"
+              class="border-blue-200 focus:border-blue-500"
+            />
+          </div>
+
+          <div class="space-y-1">
+            <Label for="warehouse" class="text-xs font-bold text-gray-500 uppercase">Almacén Destino</Label>
             <Select v-model="selectedWarehouse">
-              <SelectTrigger id="warehouse" class="mt-1">
-                <SelectValue placeholder="Selecciona un almacén..." />
+              <SelectTrigger id="warehouse">
+                <SelectValue placeholder="Selecciona..." />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   <SelectItem v-for="wh in warehouses" :key="wh.id" :value="wh.id">
-                    {{ wh.name }} ({{ wh.location }})
+                    {{ wh.name }}
                   </SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
           </div>
+
         </CardContent>
       </Card>
 
@@ -215,7 +238,6 @@ async function handleSubmitReception() {
                 <TableHead class="w-[25%]">Producto (Catálogo)</TableHead>
                 <TableHead>Cant. Pedida</TableHead>
                 <TableHead>Cant. a Recibir</TableHead>
-                <!-- CAMBIO: Nueva columna para Ubicación -->
                 <TableHead>Ubicación</TableHead>
               </TableRow>
             </TableHeader>
@@ -269,10 +291,10 @@ async function handleSubmitReception() {
 
                 <TableCell>{{ item.quantity_ordered }}</TableCell>
                 <TableCell>
-                  <Input v-model="item.quantity_received" type="number" min="0" class="w-24" />
+                  <Input v-model="item.quantity_received" type="number" min="0" class="w-24 text-right" />
                 </TableCell>
                 <TableCell>
-                  <Input v-model="item.location" type="text" class="w-24" placeholder="Ej: A1-B2" />
+                  <Input v-model="item.location" type="text" class="w-24" placeholder="Ej: A1" />
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -280,14 +302,14 @@ async function handleSubmitReception() {
         </CardContent>
       </Card>
 
-
       <div class="flex justify-end">
-        <Button @click="handleSubmitReception" :disabled="isSubmitting">
+        <Button @click="handleSubmitReception" :disabled="isSubmitting" class="bg-blue-600 hover:bg-blue-700">
           <Loader2 v-if="isSubmitting" class="h-4 w-4 animate-spin mr-2" />
-          Procesar Recepción y Mover a Stock
+          Procesar Recepción
         </Button>
       </div>
     </div>
+
     <ProductFormModal
       :open="isProductModalOpen"
       :categories="categories"
@@ -295,5 +317,4 @@ async function handleSubmitReception() {
       @productCreated="onProductCreated"
     />
   </div>
-
 </template>

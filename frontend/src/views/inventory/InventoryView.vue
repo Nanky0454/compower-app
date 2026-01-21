@@ -56,7 +56,7 @@ onMounted(async () => {
           <TableRow v-for="order in receivableOrders" :key="order.id">
             <TableCell class="font-medium">{{ order.codigo }}</TableCell>
             <TableCell>{{ order.provider_name }}</TableCell>
-            <TableCell>{{ order.cost_center_code }}</TableCell>
+            <TableCell>{{ order.cost_center_name }}</TableCell>
             <TableCell>
               <Badge variant="secondary">{{ order.status }}</Badge>
             </TableCell>

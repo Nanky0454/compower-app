@@ -120,10 +120,10 @@ async function loadOrderData() {
 
     // Mapear Items del backend a la estructura del frontend
     formData.items = data.items.map(i => ({
-        invoice_detail_text: i.descripcion,
-        um: i.unidad,
-        quantity: i.cant,
-        unit_price: i.pu
+        invoice_detail_text: i.invoice_detail_text,
+        um: i.unit_of_measure,
+        quantity: i.quantity,
+        unit_price: i.unit_price
     }))
 
   } catch (e) {

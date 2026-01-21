@@ -117,6 +117,7 @@ function formatDate(dateString) {
                 <TableHead>Almacén Origen</TableHead>
                 <TableHead>Destino</TableHead>
                 <TableHead>Documento</TableHead>
+                <TableHead>C.C.</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead class="text-right">Acciones</TableHead>
               </TableRow>
@@ -135,6 +136,11 @@ function formatDate(dateString) {
                 <TableCell>
                   <span v-if="transfer.gre_series">{{ transfer.gre_series }}-{{ transfer.gre_number }}</span>
                   <span v-else>-</span>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">
+                    {{ transfer.cost_center }}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">

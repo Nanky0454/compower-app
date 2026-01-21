@@ -3,14 +3,15 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useRouter } from 'vue-router'
 
-// --- UI Components (Asegúrate de tenerlos creados/instalados) ---
+// --- UI Components ---
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Plus, Trash2, Search, FileText, Wrench, ArrowLeft, Printer, Eye, Contact, Pencil } from 'lucide-vue-next'
+// AGREGADO: Importamos 'Download' para el ícono de descarga
+import { Loader2, Plus, Trash2, Search, FileText, Wrench, ArrowLeft, Printer, Eye, Contact, Pencil, Download } from 'lucide-vue-next'
 
 const { getAccessTokenSilently } = useAuth0()
 const router = useRouter()
@@ -20,6 +21,9 @@ const FLASK_API_URL = `${import.meta.env.VITE_API_URL}/api`
 const viewMode = ref('list') // 'list' | 'create'
 const isLoadingList = ref(true)
 const purchaseOrders = ref([])
+
+// Estado para saber qué orden se está descargando actualmente (para mostrar el spinner correcto)
+const downloadingOrderId = ref(null)
 
 // =============================================================================
 //  LÓGICA DE LISTADO (MODO LISTA)
@@ -54,6 +58,38 @@ function getStatusColor(status) {
     case 'Anulada': return 'bg-red-100 text-red-800'
     default: return 'bg-gray-100 text-gray-800'
   }
+}
+
+// NUEVA FUNCIÓN: Descargar PDF desde la lista
+async function downloadPdf(order) {
+  downloadingOrderId.value = order.id
+  try {
+    const token = await getAccessTokenSilently()
+    const response = await fetch(`${FLASK_API_URL}/purchases/${order.id}/pdf`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+
+    if (!response.ok) throw new Error("Error generando PDF")
+
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Orden_${order.codigo || order.document_number}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+
+  } catch (e) {
+    alert("Error al descargar: " + e.message)
+  } finally {
+    downloadingOrderId.value = null
+  }
+}
+
+function goToDetail(id) {
+  router.push({ name: 'PurchaseDetail', params: { id } })
 }
 
 // =============================================================================
@@ -156,10 +192,6 @@ async function fetchNextCorrelative() {
   } finally {
       isFetchingCorrelative.value = false
   }
-}
-
-function goToDetail(id) {
-  router.push({ name: 'PurchaseDetail', params: { id } })
 }
 
 // Vigilar cambios en la serie para actualizar el número automáticamente
@@ -373,18 +405,30 @@ async function handleSubmit() {
                 </TableCell>
 
                 <TableCell class="text-center flex justify-center gap-2">
+
                    <Button variant="ghost" size="icon" class="h-8 w-8 text-gray-400" @click="goToDetail(order.id)">
                      <Eye class="w-4 h-4" />
                    </Button>
 
                    <Button
-                     v-if="order.status === 'Pendiente' || order.status === 'Borrador'"
+                     v-if="order.status === 'Pendiente' || order.status === 'Borrador' || order.status === 'Emitida'"
                      variant="ghost"
                      size="icon"
                      class="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                      @click="$router.push(`/purchases/${order.id}/edit`)"
                    >
                      <Pencil class="w-4 h-4" />
+                   </Button>
+
+                   <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-gray-600 hover:text-gray-900"
+                      @click="downloadPdf(order)"
+                      :disabled="downloadingOrderId === order.id"
+                   >
+                      <Loader2 v-if="downloadingOrderId === order.id" class="w-4 h-4 animate-spin" />
+                      <Download v-else class="w-4 h-4" />
                    </Button>
 
                 </TableCell>
@@ -403,7 +447,6 @@ async function handleSubmit() {
     </div>
 
     <div v-else class="animate-in slide-in-from-right-4 duration-300">
-
       <div class="flex items-center gap-4 mb-6">
         <Button variant="outline" size="icon" @click="switchToList">
            <ArrowLeft class="w-4 h-4" />

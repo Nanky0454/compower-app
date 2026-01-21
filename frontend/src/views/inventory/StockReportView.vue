@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, h, watch } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
+import { useRouter } from 'vue-router' // <--- 1. Importar useRouter
 import {
   useVueTable,
   getCoreRowModel,
@@ -19,10 +20,11 @@ import { Button } from '@/components/ui/button/index.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu/index.js'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
-import { ArrowUpDown, ChevronDown, FileDown, Tags } from 'lucide-vue-next'
+import { ArrowUpDown, ChevronDown, FileDown, Tags, Plus } from 'lucide-vue-next' // Plus ya estaba importado
 import LabelGenerator from '@/views/inventory/components/LabelGenerator.vue'
 
 const { getAccessTokenSilently } = useAuth0()
+const router = useRouter() // <--- 2. Inicializar router
 
 // --- State ---
 const data = ref([])
@@ -35,7 +37,6 @@ const showLabelGeneratorDialog = ref(false)
 // --- Table State ---
 const sorting = ref([])
 const columnFilters = ref([])
-// Estado para el filtro global (Buscador general)
 const globalFilter = ref('')
 
 const columnVisibility = ref({
@@ -126,22 +127,18 @@ const table = useVueTable({
     get columnFilters() { return columnFilters.value },
     get columnVisibility() { return columnVisibility.value },
     get pagination() { return pagination.value },
-    // Vincular el estado del filtro global
     get globalFilter() { return globalFilter.value },
   },
-  // Función personalizada de búsqueda (SKU O NOMBRE)
   globalFilterFn: (row, columnId, filterValue) => {
     const search = filterValue.toLowerCase()
     const sku = String(row.original.product_sku ?? '').toLowerCase()
     const name = String(row.original.product_name ?? '').toLowerCase()
-    // Devuelve true si encuentra coincidencia en SKU o Nombre
     return sku.includes(search) || name.includes(search)
   },
   onSortingChange: (updaterOrValue) => sorting.value = typeof updaterOrValue === 'function' ? updaterOrValue(sorting.value) : updaterOrValue,
   onColumnFiltersChange: (updaterOrValue) => columnFilters.value = typeof updaterOrValue === 'function' ? updaterOrValue(columnFilters.value) : updaterOrValue,
   onColumnVisibilityChange: (updaterOrValue) => columnVisibility.value = typeof updaterOrValue === 'function' ? updaterOrValue(columnVisibility.value) : updaterOrValue,
   onPaginationChange: (updaterOrValue) => pagination.value = typeof updaterOrValue === 'function' ? updaterOrValue(pagination.value) : updaterOrValue,
-  // Manejador de cambio del filtro global
   onGlobalFilterChange: (updaterOrValue) => globalFilter.value = typeof updaterOrValue === 'function' ? updaterOrValue(globalFilter.value) : updaterOrValue,
 })
 
@@ -180,7 +177,7 @@ function handleWarehouseFilterChange(value) {
 }
 
 // =========================================================
-//  LÓGICA DE CATEGORÍAS (RECURSIVA DE 3 NIVELES)
+//  LÓGICA DE CATEGORÍAS
 // =========================================================
 
 const nestedCategories = computed(() => {
@@ -360,6 +357,14 @@ function downloadExcel() {
       </div>
 
       <div class="flex items-center gap-2">
+        <Button
+          @click="router.push({ name: 'RegisterInventoryView' })"
+          class="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          <Plus class="mr-2 h-4 w-4" />
+          Registrar Inventario
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="outline" class="ml-auto">
@@ -386,10 +391,12 @@ function downloadExcel() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
         <Button variant="outline" @click="downloadExcel">
           <FileDown class="mr-2 h-4 w-4" />
           Descargar Excel
         </Button>
+
         <Dialog v-model:open="showLabelGeneratorDialog">
           <DialogTrigger as-child>
             <Button variant="outline">
