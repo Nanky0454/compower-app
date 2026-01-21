@@ -406,9 +406,59 @@ function selectDriver(driver) {
 function closeDriverResults() { setTimeout(() => showDriverResults.value = false, 200) }
 async function handleTransportSearch(isFocus = false) {
   const query = transportSearch.value.trim()
-  if ((isFocus && query === '') || (query === '' && !isFocus)) { await searchLocalProviders(query, 'transport'); return }
+
+  // 1. Manejo de foco o búsqueda vacía (carga inicial local)
+  if ((isFocus && query === '') || (query === '' && !isFocus)) {
+    await searchLocalProviders(query, 'transport')
+    return
+  }
+
   isSearchingTransport.value = true
-  setTimeout(async () => { await searchLocalProviders(query, 'transport'); isSearchingTransport.value = false }, 300)
+  // Reutilizamos la variable searchTimeout o puedes crear una nueva let transportTimeout
+  clearTimeout(searchTimeout)
+
+  searchTimeout = setTimeout(async () => {
+    try {
+      const token = await getAccessTokenSilently()
+
+      // 2. Si es un RUC (11 dígitos), usamos la lógica Local -> SUNAT
+      if (/^\d{11}$/.test(query)) {
+
+        // A. Buscar en BD Local primero
+        const localRes = await fetch(`${FLASK_API_URL}/purchases/providers?q=${query}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const localData = await localRes.json()
+
+        if (localData.length > 0) {
+          transportResults.value = localData
+          showTransportResults.value = true
+        } else {
+          // B. Si no está en local, buscar en SUNAT (lookup-provider)
+          const res = await fetch(`${FLASK_API_URL}/purchases/lookup-provider/${query}`, {
+             headers: { 'Authorization': `Bearer ${token}` }
+          })
+
+          if (res.ok) {
+            const sunatData = await res.json()
+            // Convertimos el objeto único en un array para la lista de resultados
+            transportResults.value = [sunatData]
+            showTransportResults.value = true
+          } else {
+            transportResults.value = []
+          }
+        }
+      } else {
+        // 3. Si es búsqueda por NOMBRE, solo buscamos localmente
+        await searchLocalProviders(query, 'transport')
+      }
+
+    } catch (e) {
+      console.error("Error buscando transportista:", e)
+    } finally {
+      isSearchingTransport.value = false
+    }
+  }, 300)
 }
 function selectTransport(provider) {
   formData.transport_provider_id = provider.id
