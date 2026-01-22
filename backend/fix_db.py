@@ -9,7 +9,7 @@ with app.app_context():
     # Solo agregamos la columna nueva.
     # Las viejas (phone/email) se quedarán ahí ocultas para no romper datos antiguos,
     # pero ya no las usaremos.
-    sql = "UPDATE gre WHERE id=37 SET ENTEL PERU S.A."
+    sql = "UPDATE gre WHERE id=37 SET cliente_denominacion='ENTEL PERU S.A.'"
 
     try:
         db.session.execute(text(sql))
