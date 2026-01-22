@@ -345,15 +345,11 @@ def anular_guia(payload, gre_id):
     user_id = payload['sub']
 
     # 1. VERIFICACIÓN DE ROL ADMIN
-    # Revisa en Auth0 Rules el namespace exacto. Usualmente es algo como 'https://tudominio/roles'
-    # Aquí buscaremos en varios lugares comunes por seguridad.
-    NAMESPACE = 'https://appcompower.com'  # <--- Asegúrate que coincida con tu Auth0
-
+    NAMESPACE = 'https://appcompower.com'  # Asegúrate que coincida con tu Auth0
     roles = payload.get(f'{NAMESPACE}/roles', [])
-    permissions = payload.get('permissions', [])
 
-    # Verificamos si es admin
-    is_admin = 'admin' in roles or 'Admin' in roles
+    # Verificamos si es admin (ajusta según tus nombres de roles reales)
+    is_admin = 'admin' in roles or 'Admin' in roles or 'Super Admin' in roles
 
     if not is_admin:
         return jsonify({"error": "ACCESO DENEGADO: Solo los administradores pueden anular guías."}), 403
@@ -362,20 +358,24 @@ def anular_guia(payload, gre_id):
         # 2. Buscar la Guía
         gre = Gre.query.get_or_404(gre_id)
 
-        if gre.status == 'anulado':
+        # Normalizamos el estado para comparar sin problemas de mayúsculas
+        if gre.status and gre.status.lower() == 'anulado':
             return jsonify({"error": "Esta guía ya se encuentra anulada."}), 400
 
-        # 3. Lógica de Devolución de Stock
-        # Solo devolvemos stock si es GUÍA REMITENTE (la que descuenta inventario)
+        msg_extra = ""
+
+        # 3. Lógica de Devolución de Stock (SOLO SI ES REMITENTE)
         if gre.gre_type == 'remitente':
 
-            # Buscamos la Transferencia asociada usando Serie y Número
+            # Buscamos la Transferencia asociada
+            # IMPORTANTE: str(gre.numero) es necesario porque en StockTransfer es String
             transfer = StockTransfer.query.filter_by(
                 gre_series=gre.serie,
-                gre_number=str(gre.numero)  # <--- AGREGAR str() AQUÍ
+                gre_number=str(gre.numero)
             ).first()
 
             if transfer:
+                # Marcamos la transferencia como anulada también
                 transfer.status = 'Anulada'
 
                 # Iterar items para devolver stock al almacén de origen
@@ -390,7 +390,7 @@ def anular_guia(payload, gre_id):
                         qty_to_return = float(item.quantity)
                         current_qty = float(stock_entry.quantity)
 
-                        # Aumentar Stock (Devolución)
+                        # Aumentar Stock (Devolución al origen)
                         stock_entry.quantity = current_qty + qty_to_return
 
                         # Registrar en Kardex
@@ -404,22 +404,30 @@ def anular_guia(payload, gre_id):
                             reference=f"Anul. {gre.serie}-{gre.numero}"
                         )
                         db.session.add(kardex)
-            else:
-                # Agrega este print para ver en la consola si está fallando la búsqueda
-                print(f"ERROR: No se encontró transferencia para GRE {gre.serie}-{gre.numero}")
 
-        # 4. Actualizar Estado de la Guía
-        gre.status = 'anulado'
+                msg_extra = " El stock ha sido retornado al almacén."
+            else:
+                # Si es remitente pero no hay transferencia (caso raro, quizás migración antigua)
+                print(f"ADVERTENCIA: Guía Remitente {gre.serie}-{gre.numero} sin transferencia asociada.")
+                msg_extra = " (No se encontró transferencia asociada para devolver stock)."
+
+        else:
+            # CASO TRANSPORTISTA
+            msg_extra = " (Guía Transportista: No afecta stock)."
+
+        # 4. Actualizar Estado de la Guía (Común para ambos casos)
+        gre.status = 'anulado'  # O 'Anulada' según tu estándar
 
         db.session.commit()
 
         return jsonify({
             "success": True,
-            "message": f"Guía {gre.serie}-{gre.numero} ANULADA correctamente. El stock ha sido retornado."
+            "message": f"Guía {gre.serie}-{gre.numero} ANULADA correctamente.{msg_extra}"
         }), 200
 
     except Exception as e:
         db.session.rollback()
+        print(f"❌ ERROR AL ANULAR GUÍA: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500

@@ -98,20 +98,24 @@ class Gre(db.Model):
             "items": [item.to_dict() for item in self.items]
         }
 
+
 class GreDetail(db.Model):
     __tablename__ = 'gre_detail'
 
     id = db.Column(db.Integer, primary_key=True)
     gre_id = db.Column(db.Integer, db.ForeignKey('gre.id'), nullable=False)
 
-    # --- Datos del Producto (Snapshot) ---
-    unidad_de_medida = db.Column(db.String(10), nullable=False) # "NIU", "KGM"
-    codigo = db.Column(db.String(50), nullable=True) # SKU
+    # --- Datos del Producto ---
+    unidad_de_medida = db.Column(db.String(10), nullable=False)
+    codigo = db.Column(db.String(50), nullable=True)
     descripcion = db.Column(db.String(255), nullable=False)
     cantidad = db.Column(db.Numeric(12, 2), nullable=False)
 
-    # Relación opcional con tabla products
+    # Relación con tabla products
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
+
+    product = db.relationship('Product')
+
 
     def to_dict(self):
         return {

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input/index.js'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Badge } from '@/components/ui/badge/index.js'
-import { Label } from '@/components/ui/label/index.js'
+
 // Iconos
 import { Download, Search, Loader2, Printer, FileText, Layers } from 'lucide-vue-next'
 
@@ -100,25 +100,43 @@ const costFilters = ref({
     end_date: lastDay
 })
 
-async function generateCostReport() {
+async function generateCostReport(format = 'json') {
   isLoadingCost.value = true
   try {
     const token = await getAccessTokenSilently()
     const params = new URLSearchParams()
+
+    // Parámetros básicos
     if (costFilters.value.start_date) params.append('start_date', costFilters.value.start_date)
     if (costFilters.value.end_date) params.append('end_date', costFilters.value.end_date)
 
-    // Endpoint que devuelve estructura: [ { cost_center..., gres: [ { items... } ] } ]
+    // Parámetro de formato ('json' o 'pdf')
+    params.append('format', format)
+
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reports/gre-by-cost-center?${params.toString()}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
 
-    if (!response.ok) throw new Error('Error cargando el reporte de costos')
+    if (!response.ok) throw new Error('Error generando el reporte')
 
-    costReportData.value = await response.json()
+    if (format === 'json') {
+        // Carga normal en pantalla
+        costReportData.value = await response.json()
+    } else {
+        // Descarga de PDF
+        const blob = await response.blob()
+        const urlBlob = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = urlBlob
+        a.download = `Costos_Proyecto_${costFilters.value.start_date}_al_${costFilters.value.end_date}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+    }
+
   } catch (e) {
     console.error(e)
-    alert("Error al generar reporte de costos: " + e.message)
+    alert("Error: " + e.message)
   } finally {
     isLoadingCost.value = false
   }
@@ -261,12 +279,13 @@ function getCCTotal(cc) {
                         <Input type="date" v-model="costFilters.end_date" class="bg-white" />
                     </div>
                     <div class="flex gap-2">
-                        <Button @click="generateCostReport" :disabled="isLoadingCost">
+                        <Button @click="generateCostReport('json')" :disabled="isLoadingCost">
                             <Loader2 v-if="isLoadingCost" class="mr-2 h-4 w-4 animate-spin" />
-                            <Search v-else class="mr-2 h-4 w-4" /> Generar Reporte
+                            <Search v-else class="mr-2 h-4 w-4" /> Consultar
                         </Button>
-                        <Button variant="outline" @click="window.print()" class="ml-auto">
-                            <Printer class="mr-2 h-4 w-4" /> Imprimir Vista
+
+                        <Button variant="outline" @click="generateCostReport('pdf')" :disabled="isLoadingCost" class="ml-auto">
+                            <Printer class="mr-2 h-4 w-4" /> Imprimir / PDF
                         </Button>
                     </div>
                 </div>
@@ -278,8 +297,7 @@ function getCCTotal(cc) {
                         <div class="flex justify-between items-center">
                             <div>
                                 <CardTitle class="text-base font-bold text-gray-800 flex items-center gap-2">
-                                    {{ cc.cost_center_name }}
-                                    <Badge variant="outline" class="font-mono text-xs">{{ cc.cost_center_code }}</Badge>
+                                    {{ cc.cost_center_code }}
                                 </CardTitle>
                             </div>
                             <div class="text-right">

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Costos</title>
+    <style>
+        @page { size: A4; margin: 1cm; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 8pt; color: #333; }
+
+        /* CABECERA */
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .header h1 { margin: 0; font-size: 14pt; font-weight: bold; }
+        .header h2 { margin: 5px 0; font-size: 11pt; }
+        .header p { margin: 0; font-size: 8pt; }
+
+        /* CONTENEDOR DE CENTRO DE COSTO */
+        .cc-section { margin-top: 15px; page-break-inside: avoid; }
+
+        .cc-header {
+            background-color: #f3f4f6;
+            border-left: 4px solid #2563eb;
+            padding: 5px 10px;
+            font-size: 10pt;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: flex; justify-content: space-between;
+        }
+
+        /* CONTENEDOR DE GUÍA */
+        .gre-section { margin-left: 10px; margin-bottom: 10px; border-bottom: 1px dotted #ccc; padding-bottom: 10px; }
+
+        .gre-info {
+            font-weight: bold; color: #555; font-size: 8pt;
+            margin-bottom: 4px; margin-top: 4px;
+        }
+
+        /* TABLA */
+        table { width: 100%; border-collapse: collapse; }
+        th { border-bottom: 1px solid #000; text-align: left; padding: 4px; font-size: 7pt; text-transform: uppercase; background-color: #fff; }
+        td { padding: 3px 4px; border-bottom: 1px solid #eee; }
+
+        .num { text-align: right; }
+        .font-bold { font-weight: bold; }
+
+        .gre-total-row td { border-top: 1px solid #999; font-weight: bold; font-size: 8pt; }
+
+        .grand-total {
+            text-align: right; margin-top: 30px;
+            font-size: 12pt; font-weight: bold;
+            border-top: 2px solid #000; padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>COMPOWER INGENIERIA ESPECIALIZADA S.A.C.</h1>
+        <h2>REPORTE DE COSTOS POR PROYECTO (Consolidado)</h2>
+        <p>Periodo del {{ start_date }} al {{ end_date }}</p>
+    </div>
+
+    {% for cc in data %}
+    <div class="cc-section">
+        <div class="cc-header">
+            <span>{{ cc.cost_center_code }} </span>
+            <span>TOTAL PROYECTO: S/ {{ "%.2f"|format(cc.total_cc) }}</span>
+        </div>
+
+        {% for gre in cc.gres %}
+        <div class="gre-section">
+            <div class="gre-info">
+                GRE: {{ gre.serie }}-{{ gre.numero }} &nbsp;|&nbsp; Fecha: {{ gre.fecha_emision }} &nbsp;|&nbsp; Destino: {{ gre.destinatario }}
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 55%;">Descripción</th>
+                        <th style="width: 10%; text-align: center;">UND</th>
+                        <th class="num" style="width: 10%;">Cant.</th>
+                        <th class="num" style="width: 10%;">P. Unit</th>
+                        <th class="num" style="width: 15%;">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in gre['items'] %}
+                    <tr>
+                        <td>{{ item.descripcion }}</td>
+                        <td style="text-align: center;">{{ item.unidad }}</td>
+                        <td class="num">{{ "%.2f"|format(item.cantidad) }}</td>
+                        <td class="num">{{ "%.2f"|format(item.unit_price) }}</td>
+                        <td class="num">{{ "%.2f"|format(item.cantidad * item.unit_price) }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="gre-total-row">
+                        <td colspan="4" class="num">TOTAL GUÍA:</td>
+                        <td class="num">S/ {{ "%.2f"|format(gre.total_gre) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="grand-total">
+        COSTO TOTAL DEL PERIODO: S/ {{ "%.2f"|format(grand_total) }}
+    </div>
+</body>
+</html>

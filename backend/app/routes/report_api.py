@@ -1,5 +1,6 @@
 from flask import request, jsonify, render_template, current_app, send_file, Blueprint
-from sqlalchemy import func, case, and_
+from flask_cors import cross_origin
+from sqlalchemy import func, case, and_, cast, String
 from sqlalchemy.orm import joinedload
 from datetime import datetime, time as time_obj
 import io
@@ -96,26 +97,41 @@ def get_stock_movement_report():
 # ==========================================
 # REPORTE 2: COSTOS POR PROYECTO (NUEVO)
 # ==========================================
-@report_api.route('/gre-by-cost-center', methods=['GET'])
+@report_api.route('/gre-by-cost-center', methods=['GET', 'OPTIONS'])
+@cross_origin()
 def get_gre_by_cost_center():
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        format_type = request.args.get('format', 'json')  # 'json' para pantalla, 'pdf' para descargar
 
-        # Join: CostCenter -> StockTransfer -> Gre
+        print(f"--- 📊 SOLICITUD REPORTE COSTOS ({format_type}): {start_date} a {end_date} ---")
+
+        # 1. Consulta SQL
         query = db.session.query(CostCenter, Gre) \
             .join(StockTransfer, StockTransfer.cost_center_id == CostCenter.id) \
             .join(Gre, and_(
             Gre.serie == StockTransfer.gre_series,
-            Gre.numero == StockTransfer.gre_number
+            cast(Gre.numero, String) == StockTransfer.gre_number
         )) \
             .options(joinedload(Gre.items).joinedload(GreDetail.product))
 
+        # 2. Filtros (Estado y Tipo Remitente)
+        query = query.filter(
+            and_(
+                StockTransfer.status != 'Anulada',
+                StockTransfer.status != 'anulado',
+                Gre.gre_type == 'remitente'
+            )
+        )
+
+        # 3. Filtro Fechas
         if start_date and end_date:
             query = query.filter(Gre.fecha_de_emision.between(start_date, end_date))
 
         results = query.order_by(CostCenter.name, Gre.fecha_de_emision.desc()).all()
 
+        # 4. Procesamiento de Datos
         grouped_data = {}
 
         for cc, gre in results:
@@ -128,14 +144,20 @@ def get_gre_by_cost_center():
                     'gres': []
                 }
 
-            # Verificar duplicados de guías (por si el join trae filas repetidas)
             if any(g['id'] == gre.id for g in grouped_data[cc_id]['gres']):
                 continue
 
             items_formatted = []
             for item in gre.items:
-                # Obtener precio del producto o fallback a 0
-                unit_price = float(item.product.cost or item.product.price or 0) if item.product else 0
+                unit_price = 0
+                if item.product:
+                    # Intenta 'standard_price' (o con 't'), luego 'price', luego 0
+                    costo = getattr(item.product, 'standard_price', None)
+                    if costo is None:
+                        costo = getattr(item.product, 'standart_price', None)
+
+                    precio = getattr(item.product, 'price', None)
+                    unit_price = float(costo or precio or 0)
 
                 items_formatted.append({
                     'descripcion': item.descripcion,
@@ -153,8 +175,55 @@ def get_gre_by_cost_center():
                 'items': items_formatted
             })
 
-        return jsonify(list(grouped_data.values()))
+        # 5. Calcular Totales para el Reporte (Importante para PDF)
+        final_list = []
+        grand_total = 0.0
+
+        for cc_val in grouped_data.values():
+            cc_total = 0.0
+            gres_with_totals = []
+
+            for gre in cc_val['gres']:
+                gre_total = 0.0
+                for item in gre['items']:
+                    subtotal = item['cantidad'] * item['unit_price']
+                    gre_total += subtotal
+
+                gre['total_gre'] = gre_total
+                cc_total += gre_total
+                gres_with_totals.append(gre)
+
+            cc_val['gres'] = gres_with_totals
+            cc_val['total_cc'] = cc_total
+            grand_total += cc_total
+            final_list.append(cc_val)
+
+        print(f"--- ✅ Datos procesados: {len(final_list)} centros de costo ---")
+
+        # 6. Retorno según formato
+        if format_type == 'json':
+            return jsonify(final_list)
+
+        elif format_type == 'pdf':
+            html = render_template(
+                'cost_report.html',  # Nombre del archivo HTML creado en el paso 1
+                data=final_list,
+                start_date=start_date,
+                end_date=end_date,
+                grand_total=grand_total
+            )
+
+            pdf = HTML(string=html).write_pdf()
+
+            return send_file(
+                io.BytesIO(pdf),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f'Reporte_Costos_{start_date}.pdf'
+            )
 
     except Exception as e:
-        print(f"Error reporte costos: {e}")
+        print(f"❌ ERROR CRÍTICO: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500

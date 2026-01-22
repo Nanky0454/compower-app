@@ -58,6 +58,7 @@ def create_app(config_class=Config):
     from .routes.treasury_api import treasury_api
     from .routes.unit_measure_api import unit_measure_api
     from .routes.stock_transfer_report_api import stock_transfer_report_api
+    from .routes.report_api import report_api
 
     app.register_blueprint(transfer_api, url_prefix='/api/transfers')
     app.register_blueprint(warehouse_api, url_prefix='/api/warehouses')
@@ -75,6 +76,7 @@ def create_app(config_class=Config):
     app.register_blueprint(treasury_api, url_prefix='/api/treasury')
     app.register_blueprint(unit_measure_api, url_prefix='/api/units')
     app.register_blueprint(stock_transfer_report_api, url_prefix='/api')
+    app.register_blueprint(report_api, url_prefix='/api/reports')
 
     # --- 4. MANEJADOR DE ERRORES ---
     @app.errorhandler(AuthError)
