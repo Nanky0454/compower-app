@@ -1,21 +1,28 @@
-from app import create_app
-from app.extensions import db
-from app.models.stock_transfer import StockTransfer
+from app import create_app, db
+from sqlalchemy import text
 
 app = create_app()
 
 with app.app_context():
-    print("Iniciando limpieza...")
+    print("--- 🛠️  AGREGANDO COLUMNA ÚNICA DE CONTACTO ---")
 
-    # Busca las guías
-    guias = StockTransfer.query.filter(StockTransfer.id >= 1, StockTransfer.id <= 24).all()
+    # Solo agregamos la columna nueva.
+    # Las viejas (phone/email) se quedarán ahí ocultas para no romper datos antiguos,
+    # pero ya no las usaremos.
+    sql = "UPDATE gre WHERE id=37 SET ENTEL PERU S.A."
 
-    if not guias:
-        print("No se encontraron guías en ese rango.")
-    else:
-        print(f"Se encontraron {len(guias)} guías. Eliminando...")
-        for guia in guias:
-            db.session.delete(guia)
+    try:
+        db.session.execute(text(sql))
+        print(f"✅ Columna 'provider_contact' agregada.")
+    except Exception as e:
+        if "duplicate column" in str(e).lower():
+            print(f"⚠️  La columna ya existía.")
+        else:
+            print(f"❌ Error: {e}")
 
+    try:
         db.session.commit()
-        print("✅ ¡Eliminación exitosa!")
+        print("\n✨ Base de datos actualizada.")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error final: {e}")
