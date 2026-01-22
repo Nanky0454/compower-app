@@ -4,25 +4,26 @@ from sqlalchemy import text
 app = create_app()
 
 with app.app_context():
-    print("--- 🛠️  AGREGANDO COLUMNA ÚNICA DE CONTACTO ---")
+    print("--- 🛠️  CORRIGIENDO CLIENTE EN GRE 37 ---")
 
-    # Solo agregamos la columna nueva.
-    # Las viejas (phone/email) se quedarán ahí ocultas para no romper datos antiguos,
-    # pero ya no las usaremos.
-    sql = "UPDATE gre WHERE id=37 SET cliente_denominacion='ENTEL PERU S.A.'"
+    # SQL para actualizar el nombre del cliente
+    sql = "UPDATE gre SET cliente_denominacion='ENTEL PERU S.A.' WHERE id=37"
 
     try:
-        db.session.execute(text(sql))
-        print(f"✅ Columna 'provider_contact' agregada.")
-    except Exception as e:
-        if "duplicate column" in str(e).lower():
-            print(f"⚠️  La columna ya existía.")
-        else:
-            print(f"❌ Error: {e}")
+        # Ejecutamos la consulta
+        result = db.session.execute(text(sql))
 
-    try:
+        # Confirmamos cambios
         db.session.commit()
-        print("\n✨ Base de datos actualizada.")
+
+        # rowcount nos dice cuántas filas fueron afectadas
+        if result.rowcount > 0:
+            print(f"✅ Se actualizó el cliente a 'ENTEL PERU S.A.' en la guía ID 37.")
+        else:
+            print(f"⚠️  La sentencia corrió, pero no se encontró el ID 37 (ninguna fila afectada).")
+
     except Exception as e:
         db.session.rollback()
-        print(f"Error final: {e}")
+        print(f"❌ Error al actualizar: {e}")
+
+    print("\n✨ Proceso finalizado.")
