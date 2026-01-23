@@ -4,26 +4,32 @@ from sqlalchemy import text
 app = create_app()
 
 with app.app_context():
-    print("--- 🛠️  CORRIGIENDO CLIENTE EN GRE 37 ---")
+    print("\n--- 🛠️ ACTUALIZANDO ESTRUCTURA DE BASE DE DATOS ---")
 
-    # SQL para actualizar el nombre del cliente
-    sql = "UPDATE gre SET cliente_denominacion='ENTEL PERU S.A.' WHERE id=37"
+    # Lista de columnas que vamos a intentar agregar
+    columnas = [
+        ("transportista_documento_numero", "VARCHAR(15)"),
+        ("transportista_denominacion", "VARCHAR(255)"),
+        ("observaciones", "VARCHAR(255)")
+    ]
+
+    for col_nombre, col_tipo in columnas:
+        try:
+            # Intentamos agregar la columna
+            sql = f"ALTER TABLE gre ADD COLUMN {col_nombre} {col_tipo}"
+            db.session.execute(text(sql))
+            print(f"✅ Columna '{col_nombre}' agregada exitosamente.")
+        except Exception as e:
+            # Si falla (generalmente porque ya existe), lo ignoramos y seguimos
+            err_msg = str(e).lower()
+            if "duplicate column" in err_msg or "already exists" in err_msg:
+                print(f"ℹ️  La columna '{col_nombre}' ya existía.")
+            else:
+                print(f"⚠️  No se pudo agregar '{col_nombre}': {e}")
 
     try:
-        # Ejecutamos la consulta
-        result = db.session.execute(text(sql))
-
-        # Confirmamos cambios
         db.session.commit()
-
-        # rowcount nos dice cuántas filas fueron afectadas
-        if result.rowcount > 0:
-            print(f"✅ Se actualizó el cliente a 'ENTEL PERU S.A.' en la guía ID 37.")
-        else:
-            print(f"⚠️  La sentencia corrió, pero no se encontró el ID 37 (ninguna fila afectada).")
-
+        print("\n✨ Base de datos sincronizada correctamente.")
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Error al actualizar: {e}")
-
-    print("\n✨ Proceso finalizado.")
+        print(f"❌ Error al guardar cambios: {e}")

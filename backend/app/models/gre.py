@@ -1,6 +1,7 @@
 from ..extensions import db
 from datetime import datetime
 
+
 class Gre(db.Model):
     __tablename__ = 'gre'
 
@@ -12,8 +13,7 @@ class Gre(db.Model):
     fecha_de_emision = db.Column(db.Date, nullable=False)
     fecha_de_inicio_de_traslado = db.Column(db.Date, nullable=False)
 
-    # --- 2. NUEVOS CAMPOS (Solución a tus errores) ---
-    # Estos campos son necesarios para diferenciar Remitente vs Transportista
+    # --- 2. Tipos y Remitente ---
     gre_type = db.Column(db.String(20), default='remitente', nullable=True)
     remitente_original_ruc = db.Column(db.String(15), nullable=True)
     remitente_original_rs = db.Column(db.String(255), nullable=True)
@@ -28,8 +28,15 @@ class Gre(db.Model):
     motivo = db.Column(db.String(100), nullable=True)
     peso_bruto_total = db.Column(db.Numeric(12, 2), default=0.00)
 
+    observaciones = db.Column(db.String(255), nullable=True)
+
     # --- 5. Datos del Transporte y Vehículo ---
     tipo_de_transporte = db.Column(db.String(2), nullable=False)
+
+    # NUEVOS CAMPOS (Empresa Pública)
+    transportista_documento_numero = db.Column(db.String(15), nullable=True)
+    transportista_denominacion = db.Column(db.String(255), nullable=True)
+
     transportista_placa_numero = db.Column(db.String(10), nullable=True)
     marca = db.Column(db.String(50), nullable=True)
 
@@ -48,39 +55,34 @@ class Gre(db.Model):
     punto_de_llegada_direccion = db.Column(db.String(255), nullable=False)
 
     xml_hash = db.Column(db.String(255), nullable=True)
-
-    # --- Relaciones y Metadatos ---
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
     status = db.Column(db.String(20), default='emitido', nullable=False)
 
-    # Relación con items
     items = db.relationship('GreDetail', backref='gre', cascade='all, delete-orphan')
 
     def to_dict(self):
-        """Devuelve el JSON para el frontend o reportes"""
         return {
             "id": self.id,
             "serie": self.serie,
             "numero": self.numero,
             "status": self.status,
-            # Incluimos los nuevos campos en la respuesta
             "gre_type": self.gre_type,
             "remitente_original_ruc": self.remitente_original_ruc,
             "remitente_original_rs": self.remitente_original_rs,
-
             "fecha_de_emision": self.fecha_de_emision.isoformat() if self.fecha_de_emision else None,
             "fecha_de_inicio_de_traslado": self.fecha_de_inicio_de_traslado.isoformat() if self.fecha_de_inicio_de_traslado else None,
-
             "cliente_tipo_de_documento": self.cliente_tipo_de_documento,
             "cliente_numero_de_documento": self.cliente_numero_de_documento,
             "cliente_denominacion": self.cliente_denominacion,
-
             "motivo_de_traslado": self.motivo_de_traslado,
             "motivo": self.motivo,
             "peso_bruto_total": float(self.peso_bruto_total),
-
+            "observaciones": self.observaciones,
             "tipo_de_transporte": self.tipo_de_transporte,
+
+            # Datos Transporte
+            "transportista_documento_numero": self.transportista_documento_numero,
+            "transportista_denominacion": self.transportista_denominacion,
             "transportista_placa_numero": self.transportista_placa_numero,
             "marca": self.marca,
 
@@ -94,28 +96,20 @@ class Gre(db.Model):
             "punto_de_partida_direccion": self.punto_de_partida_direccion,
             "punto_de_llegada_ubigeo": self.punto_de_llegada_ubigeo,
             "punto_de_llegada_direccion": self.punto_de_llegada_direccion,
-
             "items": [item.to_dict() for item in self.items]
         }
 
 
 class GreDetail(db.Model):
     __tablename__ = 'gre_detail'
-
     id = db.Column(db.Integer, primary_key=True)
     gre_id = db.Column(db.Integer, db.ForeignKey('gre.id'), nullable=False)
-
-    # --- Datos del Producto ---
     unidad_de_medida = db.Column(db.String(10), nullable=False)
     codigo = db.Column(db.String(50), nullable=True)
     descripcion = db.Column(db.String(255), nullable=False)
     cantidad = db.Column(db.Numeric(12, 2), nullable=False)
-
-    # Relación con tabla products
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
-
     product = db.relationship('Product')
-
 
     def to_dict(self):
         return {

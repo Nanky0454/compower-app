@@ -17,12 +17,11 @@ from ..models.inventory_models import InventoryStock, InventoryTransaction
 from ..models.product_catalog import Product, UnitMeasure
 from ..models.warehouse import Warehouse
 from ..models.gre import Gre, GreDetail
-from ..models.ubigeo import Ubigeo  # <--- IMPORTANTE: Importar modelo Ubigeo
+from ..models.ubigeo import Ubigeo
 
 gre_bp = Blueprint('gre_api', __name__, url_prefix='/api/gre')
 
 
-# ... (Las rutas 'next-correlative' se mantienen igual) ...
 @gre_bp.route('/next-correlative', methods=['GET'])
 @requires_auth(required_permission='manage:transfers')
 def get_next_correlative(payload):
@@ -44,6 +43,12 @@ def enviar_guia_endpoint(payload):
 
     print(f"\n--- 🚀 INICIANDO PROCESO GRE ({tipo_gre.upper()}) ---")
 
+    # Helper para Mayúsculas
+    def limpiar_texto(valor):
+        if valor and isinstance(valor, str):
+            return valor.strip().upper()
+        return valor
+
     access_token = gre_service.obtener_token_oauth2()
     if not access_token:
         return jsonify({"error": "Error al obtener el token de SUNAT"}), 401
@@ -60,11 +65,9 @@ def enviar_guia_endpoint(payload):
         nombre_base_archivo = f"{datos_guia['serie']}-{datos_guia['numero']}"
         xml_firmado_bytes = gre_service.firmar_xml(xml_sin_firmar_bytes, nombre_base_archivo)
 
-        # --- [MODIFICACIÓN] USAR EL SERVICIO PARA EXTRAER EL HASH ---
-        # Esto es más limpio que poner 'from lxml...' aquí dentro
+        # Extraer Hash
         digest_value = gre_service.extraer_digest_value(xml_firmado_bytes)
         print(f"--- 🔑 DigestValue extraído: {digest_value} ---")
-        # ------------------------------------------------------------
 
         # 3. Guardar y Comprimir
         nombre_xml_firmado = f"{nombre_base_archivo}.xml"
@@ -92,70 +95,60 @@ def enviar_guia_endpoint(payload):
 
         if not resultado_consulta: return jsonify({"error": "Timeout consultando ticket"}), 500
 
-        # 6. Procesar Resultado
         cod_respuesta = resultado_consulta.get('codRespuesta')
 
         if cod_respuesta == '0':
             print(f"--- ✅ GRE Aceptada. ---")
 
-            # --- [MODIFICACIÓN CLAVE] EXTACCIÓN DEL QR DEL CDR ---
-            # Por defecto usamos el hash del XML (digest_value)
             dato_para_qr = digest_value
-
             if resultado_consulta.get('arcCdr'):
                 cdr_b64 = resultado_consulta['arcCdr']
-
-                # 1. Guardar el CDR físico (Tu código original)
                 try:
-                    gre_service.guardar_xml_en_base(f"R-{nombre_base_archivo}.zip",
-                                                    base64.b64decode(cdr_b64), "CDR")
+                    gre_service.guardar_xml_en_base(f"R-{nombre_base_archivo}.zip", base64.b64decode(cdr_b64), "CDR")
                 except:
                     pass
 
-                # 2. Intentar extraer la URL oficial del QR
-                # Asegúrate de haber agregado 'extraer_url_qr_del_cdr' en gre_service
                 url_oficial = gre_service.extraer_url_qr_del_cdr(cdr_b64)
-
                 if url_oficial:
-                    print(f"--- 🔗 URL Oficial QR detectada: {url_oficial} ---")
                     dato_para_qr = url_oficial
-                else:
-                    print("--- ⚠️ No se encontró URL en el CDR, usando Hash como respaldo ---")
-            # -----------------------------------------------------
 
             try:
-                # --- REGISTRO EN BD ---
+                # --- GUARDADO EN BD ---
                 new_gre = Gre(
-                    # ... (tus otros campos se mantienen igual) ...
                     serie=datos_guia['serie'],
                     numero=datos_guia['numero'],
                     fecha_de_emision=datos_guia['fecha_de_emision'],
                     fecha_de_inicio_de_traslado=datos_guia['fecha_de_inicio_de_traslado'],
                     cliente_tipo_de_documento=str(datos_guia['cliente_tipo_de_documento']),
                     cliente_numero_de_documento=datos_guia['cliente_numero_de_documento'],
-                    cliente_denominacion=datos_guia['cliente_denominacion'],
+                    cliente_denominacion=limpiar_texto(datos_guia['cliente_denominacion']),
                     gre_type=tipo_gre,
                     remitente_original_ruc=datos_guia.get('remitente_original_ruc'),
-                    remitente_original_rs=datos_guia.get('remitente_original_rs'),
+                    remitente_original_rs=limpiar_texto(datos_guia.get('remitente_original_rs')),
                     motivo_de_traslado=datos_guia['motivo_de_traslado'],
-                    motivo=datos_guia.get('motivo'),
+                    motivo=limpiar_texto(datos_guia.get('motivo')),
                     peso_bruto_total=datos_guia.get('peso_bruto_total', 0),
+                    punto_de_partida_ubigeo=datos_guia['punto_de_partida_ubigeo'],
+                    punto_de_partida_direccion=limpiar_texto(datos_guia['punto_de_partida_direccion']),
+                    punto_de_llegada_ubigeo=datos_guia['punto_de_llegada_ubigeo'],
+                    punto_de_llegada_direccion=limpiar_texto(datos_guia['punto_de_llegada_direccion']),
+
+                    # TRANSPORTE: Guardamos TODO
                     tipo_de_transporte=datos_guia['tipo_de_transporte'],
-                    transportista_placa_numero=datos_guia.get('transportista_placa_numero'),
-                    marca=datos_guia.get('marca'),
+
+                    transportista_documento_numero=datos_guia.get('transportista_documento_numero'),
+                    transportista_denominacion=limpiar_texto(datos_guia.get('transportista_denominacion')),
+
+                    transportista_placa_numero=limpiar_texto(datos_guia.get('transportista_placa_numero')),
+                    marca=limpiar_texto(datos_guia.get('marca')),
+
                     conductor_documento_tipo=datos_guia.get('conductor_documento_tipo'),
                     conductor_documento_numero=datos_guia.get('conductor_documento_numero'),
-                    licencia=datos_guia.get('licencia'),
-                    conductor_nombre=datos_guia.get('conductor_nombre'),
-                    conductor_apellidos=datos_guia.get('conductor_apellidos'),
-                    punto_de_partida_ubigeo=datos_guia['punto_de_partida_ubigeo'],
-                    punto_de_partida_direccion=datos_guia['punto_de_partida_direccion'],
-                    punto_de_llegada_ubigeo=datos_guia['punto_de_llegada_ubigeo'],
-                    punto_de_llegada_direccion=datos_guia['punto_de_llegada_direccion'],
+                    licencia=limpiar_texto(datos_guia.get('licencia')),
+                    conductor_nombre=limpiar_texto(datos_guia.get('conductor_nombre')),
+                    conductor_apellidos=limpiar_texto(datos_guia.get('conductor_apellidos')),
 
-                    # [CAMBIO AQUÍ] Guardamos 'dato_para_qr' (URL o Hash) en lugar de solo 'digest_value'
                     xml_hash=dato_para_qr,
-
                     created_at=datetime.now()
                 )
                 db.session.add(new_gre)
@@ -165,14 +158,14 @@ def enviar_guia_endpoint(payload):
                     prod = Product.query.filter_by(sku=item.get('codigo')).first()
                     db.session.add(GreDetail(
                         gre_id=new_gre.id,
-                        unidad_de_medida=item.get('unidad_de_medida', 'NIU'),
-                        codigo=item.get('codigo'),
-                        descripcion=item.get('descripcion'),
+                        unidad_de_medida=limpiar_texto(item.get('unidad_de_medida', 'NIU')),
+                        codigo=limpiar_texto(item.get('codigo')),
+                        descripcion=limpiar_texto(item.get('descripcion')),
                         cantidad=item.get('cantidad', 0),
                         product_id=prod.id if prod else None
                     ))
 
-                # --- LÓGICA DE STOCK (Igual que antes) ---
+                # STOCK LOGIC
                 origin_address = datos_guia.get('punto_de_partida_direccion')
                 warehouse_origen = Warehouse.query.filter_by(address=origin_address).first()
                 if not warehouse_origen and datos_guia.get('origin_warehouse_id'):
@@ -182,7 +175,7 @@ def enviar_guia_endpoint(payload):
                     new_transfer = StockTransfer(
                         user_id=user_id,
                         origin_warehouse_id=warehouse_origen.id,
-                        destination_external_address=datos_guia.get('punto_de_llegada_direccion'),
+                        destination_external_address=limpiar_texto(datos_guia.get('punto_de_llegada_direccion')),
                         status=f"Completada (GRE {tipo_gre.capitalize()})",
                         transfer_date=datetime.now(),
                         gre_series=datos_guia.get('serie'),
@@ -246,78 +239,82 @@ def download_gre_pdf(payload, transfer_id):
     if not gre_record: return jsonify({"error": "Datos fiscales no encontrados"}), 404
 
     try:
-        # 1. Resolver Texto Ubigeo
+        # Resolver Ubigeos
         def get_ubigeo_texto(codigo):
             if not codigo: return ""
-            # Nota: Mantenemos tu campo 'ubigeo_inei' que veo en tu código
             ubi = Ubigeo.query.filter_by(ubigeo_inei=codigo).first()
             if ubi:
-                # Nota: Asumo que tus campos son departamento, provincia, distrito (minúsculas)
-                # Si en tu BD son mayúsculas, cámbialo aquí.
                 return f"{ubi.departamento} - {ubi.provincia} - {ubi.distrito}"
             return codigo
 
         txt_partida = get_ubigeo_texto(gre_record.punto_de_partida_ubigeo)
         txt_llegada = get_ubigeo_texto(gre_record.punto_de_llegada_ubigeo)
 
-        # 2. Limpiar Motivo ("01" -> "1")
         motivo_clean = str(
             int(gre_record.motivo_de_traslado)) if gre_record.motivo_de_traslado.isdigit() else gre_record.motivo_de_traslado
+
+        # =================================================================
+        # ### AQUÍ ESTÁ EL CAMBIO: LEER DATOS DE EMPRESA PÚBLICA ###
+        # =================================================================
+        datos_transportista = None
+
+        # Verificamos si existe el dato en la BD. Usamos getattr por seguridad.
+        nombre_empresa = getattr(gre_record, 'transportista_denominacion', None)
+        ruc_empresa = getattr(gre_record, 'transportista_documento_numero', None)
+
+        if nombre_empresa:
+            datos_transportista = {
+                'nombre': nombre_empresa,
+                'ruc': ruc_empresa
+            }
+        # =================================================================
 
         datos_guia = {
             'serie': gre_record.serie,
             'numero': int(gre_record.numero),
             'fecha_de_emision': gre_record.fecha_de_emision,
             'fecha_de_inicio_de_traslado': gre_record.fecha_de_inicio_de_traslado,
-
-            # --- [MODIFICACIÓN] CONCATENAMOS AQUÍ LA DIRECCIÓN Y EL UBIGEO ---
-            # Esto es vital para que salga "Dirección (Lima - Lima - Lima)" en el PDF
             'punto_de_partida_direccion': f"{gre_record.punto_de_partida_direccion} \n({txt_partida})",
             'punto_de_llegada_direccion': f"{gre_record.punto_de_llegada_direccion} \n({txt_llegada})",
-            'punto_de_partida_ubigeo': "",  # Ya lo unimos arriba
+            'punto_de_partida_ubigeo': "",
             'punto_de_llegada_ubigeo': "",
-            # ----------------------------------------------------------------
-
             'cliente_denominacion': gre_record.cliente_denominacion,
             'cliente_tipo_de_documento': gre_record.cliente_tipo_de_documento,
             'cliente_numero_de_documento': gre_record.cliente_numero_de_documento,
-
             'motivo_de_traslado': motivo_clean,
             'motivo': gre_record.motivo,
 
+            # Datos Conductor / Vehículo
             'transportista_placa_numero': gre_record.transportista_placa_numero,
             'marca': gre_record.marca,
             'licencia': gre_record.licencia,
             'conductor_nombre': gre_record.conductor_nombre,
             'conductor_apellidos': gre_record.conductor_apellidos,
-            'observaciones': 'REIMPRESIÓN DESDE SISTEMA',
+
+            # ### PASAR EL OBJETO AL HTML ###
+            'transportista': datos_transportista,
+
+            'observaciones': getattr(gre_record, 'observaciones', ''),
             'items': []
         }
 
-        # Asegúrate de importar el modelo UnitMeasure al inicio de tu archivo
-        # from ..models.unit_measure import UnitMeasure
-
         detalles = GreDetail.query.filter_by(gre_id=gre_record.id).all()
         for d in detalles:
-            # 1. Valor por defecto (ej: NIU)
             unidad_visual = d.unidad_de_medida
-
-            # 2. Buscamos la equivalencia en tu tabla UnitMeasure
-            # Buscamos donde sunat_code sea "NIU"
-            medida = UnitMeasure.query.filter_by(sunat_code=unidad_visual).first()
-
-            # 3. Si encontramos la medida, tomamos el 'symbol' (UND)
-            if medida:
-                unidad_visual = medida.symbol
+            # Intentar convertir NIU a UND si existe en UnitMeasure
+            try:
+                medida = UnitMeasure.query.filter_by(sunat_code=unidad_visual).first()
+                if medida: unidad_visual = medida.symbol
+            except:
+                pass
 
             datos_guia['items'].append({
                 'codigo': d.codigo,
                 'descripcion': d.descripcion,
                 'cantidad': float(d.cantidad),
-                'unidad': unidad_visual  # Ahora será "UND"
+                'unidad': unidad_visual
             })
 
-        # 3. Usar el Hash Real para el QR
         hash_real = gre_record.xml_hash if hasattr(gre_record,
                                                    'xml_hash') and gre_record.xml_hash else "HASH-NO-DISPONIBLE"
 
@@ -333,7 +330,6 @@ def download_gre_pdf(payload, transfer_id):
         )
 
     except Exception as e:
-        print(f"Error descargando PDF: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -345,42 +341,29 @@ def anular_guia(payload, gre_id):
     user_id = payload['sub']
 
     # 1. VERIFICACIÓN DE ROL ADMIN
-    NAMESPACE = 'https://appcompower.com'  # Asegúrate que coincida con tu Auth0
+    NAMESPACE = 'https://appcompower.com'
     roles = payload.get(f'{NAMESPACE}/roles', [])
-
-    # Verificamos si es admin (ajusta según tus nombres de roles reales)
     is_admin = 'admin' in roles or 'Admin' in roles or 'Super Admin' in roles
 
     if not is_admin:
         return jsonify({"error": "ACCESO DENEGADO: Solo los administradores pueden anular guías."}), 403
 
     try:
-        # 2. Buscar la Guía
         gre = Gre.query.get_or_404(gre_id)
-
-        # Normalizamos el estado para comparar sin problemas de mayúsculas
         if gre.status and gre.status.lower() == 'anulado':
             return jsonify({"error": "Esta guía ya se encuentra anulada."}), 400
 
         msg_extra = ""
 
-        # 3. Lógica de Devolución de Stock (SOLO SI ES REMITENTE)
         if gre.gre_type == 'remitente':
-
-            # Buscamos la Transferencia asociada
-            # IMPORTANTE: str(gre.numero) es necesario porque en StockTransfer es String
             transfer = StockTransfer.query.filter_by(
                 gre_series=gre.serie,
                 gre_number=str(gre.numero)
             ).first()
 
             if transfer:
-                # Marcamos la transferencia como anulada también
                 transfer.status = 'Anulada'
-
-                # Iterar items para devolver stock al almacén de origen
                 for item in transfer.items:
-                    # Buscar el registro de stock actual
                     stock_entry = InventoryStock.query.filter_by(
                         product_id=item.product_id,
                         warehouse_id=transfer.origin_warehouse_id
@@ -389,35 +372,25 @@ def anular_guia(payload, gre_id):
                     if stock_entry:
                         qty_to_return = float(item.quantity)
                         current_qty = float(stock_entry.quantity)
-
-                        # Aumentar Stock (Devolución al origen)
                         stock_entry.quantity = current_qty + qty_to_return
 
-                        # Registrar en Kardex
                         kardex = InventoryTransaction(
                             product_id=item.product_id,
                             warehouse_id=transfer.origin_warehouse_id,
-                            quantity_change=qty_to_return,  # Positivo porque reingresa
+                            quantity_change=qty_to_return,
                             new_quantity=stock_entry.quantity,
                             type="Anulación GRE",
                             user_id=user_id,
                             reference=f"Anul. {gre.serie}-{gre.numero}"
                         )
                         db.session.add(kardex)
-
                 msg_extra = " El stock ha sido retornado al almacén."
             else:
-                # Si es remitente pero no hay transferencia (caso raro, quizás migración antigua)
-                print(f"ADVERTENCIA: Guía Remitente {gre.serie}-{gre.numero} sin transferencia asociada.")
                 msg_extra = " (No se encontró transferencia asociada para devolver stock)."
-
         else:
-            # CASO TRANSPORTISTA
             msg_extra = " (Guía Transportista: No afecta stock)."
 
-        # 4. Actualizar Estado de la Guía (Común para ambos casos)
-        gre.status = 'anulado'  # O 'Anulada' según tu estándar
-
+        gre.status = 'anulado'
         db.session.commit()
 
         return jsonify({

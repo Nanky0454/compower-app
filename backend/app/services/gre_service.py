@@ -510,6 +510,10 @@ def generar_pdf_guia(datos_guia, hash_xml_firmado):
             },
             'remitente': {'ruc': current_app.config['TU_RUC']},
 
+            # --- AGREGA ESTA LÍNEA AQUÍ ---
+            'transportista': datos_guia.get('transportista'),
+            # -------------------------------
+
             'conductor': {
                 'placa': datos_guia.get('transportista_placa_numero', ''),
                 'marca': datos_guia.get('marca', ''),

@@ -147,8 +147,6 @@ watch(() => formData.origin_warehouse_id, async (newId) => {
   isLoading.value = true
   try {
     const token = await getAccessTokenSilently()
-    // OJO: Si esta ruta del backend solo devuelve stock > 0,
-    // necesitamos modificar el backend también.
     const res = await fetch(`${FLASK_API_URL}/inventory/warehouse/${newId}/products`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -173,13 +171,10 @@ const filteredProducts = computed(() => {
   ).slice(0, 10)
 })
 
-// --- ¡FUNCIÓN MODIFICADA! Ya no bloquea si excedes el stock ---
 function validateStock(item) {
-  // Solo aseguramos que no sea negativo
   if (item.quantity < 0) {
     item.quantity = 1
   }
-  // ELIMINADO: La lógica que forzaba item.quantity = item.max_stock
 }
 
 function addItem(p) {
@@ -354,21 +349,13 @@ async function saveNewLocation() {
 // CHOFERES Y TRANSPORTE
 // =======================================================================
 async function handleDriverSearch(isFocus = false) {
-  // --- CORRECCIÓN: Si el usuario escribe, limpiamos la selección previa ---
   if (!isFocus) {
-    // 1. Borramos el ID para que el sistema sepa que ya no es el de la base de datos
     formData.driver_id = null;
-
-    // 2. Limpiamos datos vinculados para no mezclar (ej: licencia del anterior con nombre nuevo)
     formData.driver_doc_number = '';
     formData.driver_license = '';
     formData.driver_lastname = '';
-
-    // 3. Asignamos lo que escribes en el input al campo de nombre del formulario
-    // Así, si es un chofer manual, se guardará lo que estás escribiendo.
     formData.driver_name = driverSearch.value;
   }
-  // -----------------------------------------------------------------------
 
   const query = driverSearch.value.trim()
   if (isFocus && query === '') { await fetchDrivers(''); return }
@@ -384,64 +371,42 @@ async function fetchDrivers(query) {
   } catch (e) { console.error(e) }
 }
 function selectDriver(driver) {
-  // 1. Guardamos el ID
   formData.driver_id = driver.id
-
-  // 2. Llenamos los campos separados (Esto hará que aparezcan en tus nuevos inputs)
   formData.driver_name = driver.first_name
   formData.driver_lastname = driver.last_name
   formData.driver_doc_number = driver.document_number
-
-  // 3. Licencia (si existe)
   formData.driver_license = (driver.licenses && driver.licenses.length > 0)
     ? driver.licenses[0].license_number
     : ''
-
-  // 4. Opcional: Ponemos el nombre completo en el buscador para referencia visual
   driverSearch.value = `${driver.first_name} ${driver.last_name}`
-
-  // 5. Cerramos la lista
   showDriverResults.value = false
 }
 function closeDriverResults() { setTimeout(() => showDriverResults.value = false, 200) }
 async function handleTransportSearch(isFocus = false) {
   const query = transportSearch.value.trim()
-
-  // 1. Manejo de foco o búsqueda vacía (carga inicial local)
   if ((isFocus && query === '') || (query === '' && !isFocus)) {
     await searchLocalProviders(query, 'transport')
     return
   }
-
   isSearchingTransport.value = true
-  // Reutilizamos la variable searchTimeout o puedes crear una nueva let transportTimeout
   clearTimeout(searchTimeout)
-
   searchTimeout = setTimeout(async () => {
     try {
       const token = await getAccessTokenSilently()
-
-      // 2. Si es un RUC (11 dígitos), usamos la lógica Local -> SUNAT
       if (/^\d{11}$/.test(query)) {
-
-        // A. Buscar en BD Local primero
         const localRes = await fetch(`${FLASK_API_URL}/purchases/providers?q=${query}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const localData = await localRes.json()
-
         if (localData.length > 0) {
           transportResults.value = localData
           showTransportResults.value = true
         } else {
-          // B. Si no está en local, buscar en SUNAT (lookup-provider)
           const res = await fetch(`${FLASK_API_URL}/purchases/lookup-provider/${query}`, {
              headers: { 'Authorization': `Bearer ${token}` }
           })
-
           if (res.ok) {
             const sunatData = await res.json()
-            // Convertimos el objeto único en un array para la lista de resultados
             transportResults.value = [sunatData]
             showTransportResults.value = true
           } else {
@@ -449,10 +414,8 @@ async function handleTransportSearch(isFocus = false) {
           }
         }
       } else {
-        // 3. Si es búsqueda por NOMBRE, solo buscamos localmente
         await searchLocalProviders(query, 'transport')
       }
-
     } catch (e) {
       console.error("Error buscando transportista:", e)
     } finally {
@@ -516,10 +479,12 @@ async function handleSubmit() {
     if (mode.value === 'external') {
         if (!formData.client_id && !formData.client_name) throw new Error("Debe seleccionar un Cliente destinatario.")
         if (!formData.location_id && !showNewLocationForm.value) throw new Error("Debe seleccionar una Sede (Punto de Llegada).")
-        if (formData.transport_type === 'private') {
-            if (!formData.driver_doc_number || !formData.driver_name) throw new Error("Datos del Chofer obligatorios.")
-            if (!formData.vehicle_plate) throw new Error("La Placa del vehículo es obligatoria.")
-        } else {
+
+        // --- VALIDACIÓN CORREGIDA ---
+        if (!formData.vehicle_plate) throw new Error("La Placa del vehículo es obligatoria.")
+        if (!formData.driver_doc_number || !formData.driver_name) throw new Error("Los datos del Conductor son obligatorios.")
+
+        if (formData.transport_type === 'public') {
             if (!formData.transport_ruc || !formData.transport_name) throw new Error("Datos de la Empresa de Transporte obligatorios.")
         }
     }
@@ -575,18 +540,20 @@ async function handleSubmit() {
         punto_de_llegada_ubigeo: formData.punto_llegada_ubigeo || '150101',
         punto_de_llegada_direccion: formData.punto_llegada_direccion || formData.client_address,
         items: itemsFormatted,
-        gre_type: formData.gre_type
+        gre_type: formData.gre_type,
+
+        // --- ENVÍO DE DATOS INCONDICIONAL ---
+        transportista_placa_numero: formData.vehicle_plate,
+        marca: formData.vehicle_brand || '',
+        conductor_documento_tipo: formData.driver_doc_type,
+        conductor_documento_numero: formData.driver_doc_number,
+        conductor_nombre: formData.driver_name,
+        conductor_apellidos: formData.driver_lastname,
+        licencia: formData.driver_license
       }
 
       if (formData.transport_type === 'private') {
         finalBody.tipo_de_transporte = "02"
-        finalBody.transportista_placa_numero = formData.vehicle_plate
-        finalBody.marca = formData.vehicle_brand || ''
-        finalBody.conductor_documento_tipo = formData.driver_doc_type
-        finalBody.conductor_documento_numero = formData.driver_doc_number
-        finalBody.conductor_nombre = formData.driver_name
-        finalBody.conductor_apellidos = formData.driver_lastname
-        finalBody.licencia = formData.driver_license
       } else {
         finalBody.tipo_de_transporte = "01"
         finalBody.transportista_documento_numero = formData.transport_ruc
@@ -871,32 +838,47 @@ async function handleSubmit() {
                 </div>
               </div>
 
-              <div v-if="formData.transport_type === 'private'" class="grid grid-cols-2 gap-2 animate-in fade-in">
-                <div>
-                   <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Nombres</Label>
-                   <Input v-model="formData.driver_name" class="h-8 text-xs font-mono uppercase border-gray-300"/>
-                </div>
+              <div class="grid grid-cols-2 gap-2 animate-in fade-in mt-4">
+                  <div>
+                      <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Tipo Doc.</Label>
+                      <Select v-model="formData.driver_doc_type">
+                          <SelectTrigger class="h-8 text-xs bg-white border-gray-300"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="1" class="text-xs">DNI</SelectItem>
+                              <SelectItem value="4" class="text-xs">C.EXT</SelectItem>
+                          </SelectContent>
+                      </Select>
+                  </div>
 
-                <div>
-                   <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Apellidos</Label>
-                   <Input v-model="formData.driver_lastname" class="h-8 text-xs font-mono uppercase border-gray-300"/>
-                </div>
+                  <div>
+                      <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Nº Documento</Label>
+                      <Input v-model="formData.driver_doc_number" class="h-8 text-xs font-mono font-bold border-gray-300" maxlength="15"/>
+                  </div>
+                  <div>
+                     <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Nombres</Label>
+                     <Input v-model="formData.driver_name" class="h-8 text-xs font-mono uppercase border-gray-300"/>
+                  </div>
 
-                <div>
-                   <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Placa</Label>
-                   <Input v-model="formData.vehicle_plate" class="h-8 text-xs font-mono uppercase border-gray-300"/>
-                </div>
+                  <div>
+                     <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Apellidos</Label>
+                     <Input v-model="formData.driver_lastname" class="h-8 text-xs font-mono uppercase border-gray-300"/>
+                  </div>
 
-                <div>
-                   <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Marca</Label>
-                   <Input v-model="formData.vehicle_brand" class="h-8 text-xs font-mono uppercase border-gray-300"/>
-                </div>
+                  <div>
+                     <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Placa</Label>
+                     <Input v-model="formData.vehicle_plate" class="h-8 text-xs font-mono uppercase border-gray-300"/>
+                  </div>
 
-                <div class="col-span-2">
-                   <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Licencia</Label>
-                   <Input v-model="formData.driver_license" class="h-8 text-xs font-mono uppercase border-gray-300 bg-gray-50"/>
-                </div>
-            </div>
+                  <div>
+                     <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Marca</Label>
+                     <Input v-model="formData.vehicle_brand" class="h-8 text-xs font-mono uppercase border-gray-300"/>
+                  </div>
+
+                  <div class="col-span-2">
+                     <Label class="text-[9px] text-gray-400 font-bold mb-0.5 block uppercase">Licencia</Label>
+                     <Input v-model="formData.driver_license" class="h-8 text-xs font-mono uppercase border-gray-300 bg-gray-50"/>
+                  </div>
+              </div>
             </CardContent>
           </Card>
         </div>
