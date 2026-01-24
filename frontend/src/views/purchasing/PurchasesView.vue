@@ -199,7 +199,6 @@ watch(correlativeSeries, (newVal) => {
     if(newVal.length === 3) fetchNextCorrelative()
 })
 
-
 // --- BUSCADOR PROVEEDOR INTELIGENTE ---
 async function handleProviderSearch() {
   const q = formData.provider_search.trim()
