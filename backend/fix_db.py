@@ -8,7 +8,7 @@ with app.app_context():
     print("--- MODIFICAR DATO ---")
 
     try:
-        sql = "UPDATE stock_tranfers SET cost_center_id= WHERE gre_number = '1162'"
+        sql = "UPDATE stock_tranfers SET cost_center_id=115 WHERE gre_number = '1162'"
         db.session.execute(text(sql))
         print("CORRECTO")
     except Exception as e:

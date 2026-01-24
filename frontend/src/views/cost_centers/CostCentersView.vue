@@ -142,7 +142,6 @@ async function handleFormSubmit() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHe>ID</TableHe>
             <TableHead>Código</TableHead>
             <TableHead>Nombre</TableHead>
             <TableHead>Presupuesto</TableHead>
@@ -154,7 +153,6 @@ async function handleFormSubmit() {
         </TableHeader>
         <TableBody>
           <TableRow v-for="cc in costCenters" :key="cc.id">
-            <TableCell>{{ cc.id }}</TableCell>
             <TableCell class="font-medium">{{ cc.code }}</TableCell>
             <TableCell>{{ cc.name }}</TableCell>
             <TableCell>{{ currencyFormatter.format(cc.budget) }}</TableCell>
