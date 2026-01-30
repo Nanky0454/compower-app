@@ -167,7 +167,7 @@ const DEFAULT_CONDITIONS = [
 ]
 
 // --- NOTA POR DEFECTO ---
-const DEFAULT_FOOTER_NOTE = `Nota: La orden de compra es nula sin las firmas del jefe(a) de operaciones y de la gerencia.
+const DEFAULT_FOOTER_NOTE = `Nota: La orden de compra es nula sin todas las firmas necesarias.
 Toda factura deberá incluir el número de orden de compra y centro de costo correspondiente.
 Solo se recibirán documentos de pago (facturas) los días miércoles de 9:00 a 16:00. De enviar el documento fuera de día indicado será programado para la semana siguiente.`
 
@@ -751,8 +751,11 @@ async function handleAnnul(order) {
                         <Select v-model="item.um">
                           <SelectTrigger class="h-8"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="UND">UND</SelectItem><SelectItem value="SERV">SERV</SelectItem>
+                            <SelectItem value="PZA">PZA</SelectItem>
                             <SelectItem value="GLB">GLB</SelectItem>
+                            <SelectItem value="MT">MT</SelectItem>
+                            <SelectItem value="KG">KG</SelectItem>
+                            <SelectItem value="M2">M2</SelectItem>
                           </SelectContent>
                         </Select>
                      </TableCell>
