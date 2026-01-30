@@ -1,5 +1,6 @@
 from ..extensions import db
 from datetime import datetime
+import json
 from .cost_center import CostCenter
 
 
@@ -29,7 +30,12 @@ class PurchaseOrderItem(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
     product = db.relationship('Product')
 
-    # Campos formato Excel
+    # --- CAMBIO CLAVE PARA ESTRUCTURA TIPO ÁRBOL (OS) ---
+    # Si tiene valor, este item pertenece a ese grupo (Ej: "1.00 MEJORAMIENTO SALA 1")
+    # Si es NULL, es un item estándar (OC).
+    group_name = db.Column(db.String(255), nullable=True)
+    # ----------------------------------------------------
+
     invoice_detail_text = db.Column(db.String(255), nullable=False)
     unit_of_measure = db.Column(db.String(20), nullable=True, default='UND')
     quantity = db.Column(db.Numeric(10, 2), nullable=False, default=1.00)
@@ -41,6 +47,10 @@ class PurchaseOrderItem(db.Model):
         return {
             'id': self.id,
             'order_id': self.order_id,
+
+            # Devolvemos el grupo para poder reconstruir el árbol en el Frontend/PDF
+            'group_name': self.group_name,
+
             'invoice_detail_text': self.invoice_detail_text,
             'unit_of_measure': self.unit_of_measure,
             'quantity': float(self.quantity),
@@ -63,16 +73,30 @@ class PurchaseOrder(db.Model):
     # --- Campos Formato Excel ---
     reference = db.Column(db.String(100), nullable=True)
     attention = db.Column(db.String(100), nullable=True)
-    scope = db.Column(db.Text, nullable=True)
-    payment_condition = db.Column(db.String(100), nullable=True)
-    transfer_date = db.Column(db.Date, nullable=True)
-    currency = db.Column(db.String(10), default='PEN')
 
-    # --- CAMBIO: UN SOLO CAMPO DE CONTACTO ---
-    # Aquí guardaremos el teléfono O el email
+    coordinator = db.Column(db.String(150), nullable=True)
+    site = db.Column(db.String(255), nullable=True)
+
+    scope = db.Column(db.Text, nullable=True)
+
+    # --- NUEVO CAMPO PARA CONDICIONES EDITABLES ---
+    # Aquí guardaremos la lista ["Condición 1", "Condición 2"...] como texto JSON
+    commercial_conditions = db.Column(db.Text, nullable=True)
+    # ----------------------------------------------
+
+    payment_condition = db.Column(db.String(100), nullable=True)
+
+    # --- FECHAS ---
+    transfer_date = db.Column(db.Date, nullable=True)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+
+    currency = db.Column(db.String(10), default='PEN')
     provider_contact = db.Column(db.String(150), nullable=True)
 
-    # --- Relaciones ---
+    footer_note = db.Column(db.Text, nullable=True)
+
+    # --- Relaciones (IGUAL) ---
     owner_id = db.Column(db.String(255), nullable=False)
     provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=False)
     provider = db.relationship('Provider')
@@ -86,7 +110,18 @@ class PurchaseOrder(db.Model):
 
     def to_dict(self):
         total = sum(item.quantity * item.unit_price for item in self.items.all())
+
         t_date = self.transfer_date.strftime('%Y-%m-%d') if self.transfer_date else None
+        s_date = self.start_date.strftime('%Y-%m-%d') if self.start_date else None
+        e_date = self.end_date.strftime('%Y-%m-%d') if self.end_date else None
+
+        # Intentar convertir el texto guardado de vuelta a una lista real para el Frontend
+        condiciones_lista = []
+        if self.commercial_conditions:
+            try:
+                condiciones_lista = json.loads(self.commercial_conditions)
+            except:
+                condiciones_lista = []
 
         return {
             'id': self.id,
@@ -96,19 +131,27 @@ class PurchaseOrder(db.Model):
             'ruc': self.provider.ruc if self.provider else 'N/A',
             'direccion': self.provider.address if self.provider else 'N/A',
             'provider_name': self.provider.name if self.provider else 'N/A',
-
-            # --- CAMBIO EN EL DICCIONARIO ---
-            # Devolvemos el campo unificado. Si está vacío, devolvemos 'N/A'
             'contacto': self.provider_contact or 'N/A',
 
             'id_cc': self.cost_center_id,
             'cost_center_name': self.cost_center.code if self.cost_center else 'N/A',
             'referencia': self.reference,
             'atencion': self.attention,
+
+            'coordinador': self.coordinator or '',
+            'site': self.site or '',
+
             'fecha_emision': self.created_at.isoformat(),
             'alcance': self.scope,
+
+            # Devolvemos la lista de condiciones procesada
+            'condiciones_comerciales': condiciones_lista,
+            'notas_pie': self.footer_note,
             'forma_pago': self.payment_condition,
             'fecha_traslado': t_date,
+            'fecha_inicio': s_date,
+            'fecha_fin': e_date,
+
             'moneda': self.currency,
             'status': self.status.name if self.status else 'N/A',
             'total_amount': float(total),

@@ -1,7 +1,10 @@
 import os
+import requests  # <--- NUEVO
+from datetime import date  # <--- NUEVO
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate  # <--- Lo importas aquí
+from flask_migrate import Migrate
+from flask_apscheduler import APScheduler  # <--- NUEVO
 from .extensions import db, cors
 from config import Config
 
@@ -18,7 +21,59 @@ from .models.stock_transfer import StockTransfer, StockTransferItem
 from .models.employee import Employee, EmployeeLicense
 from .models.attendance import AttendanceRecord
 from .models.reception import ProductReceipt, ProductReceiptItem
+# Asegúrate de tener tu modelo ExchangeRate expuesto en tus modelos
+# from .models.exchange_rate import ExchangeRate
 from .services.auth_service import AuthError, requires_auth
+
+# --- INICIALIZAR SCHEDULER (Global) ---
+scheduler = APScheduler()
+
+
+# --- FUNCIÓN DE TAREA AUTOMÁTICA ---
+def tarea_actualizar_tipo_cambio():
+    """Consulta la API de Decolecta y guarda el tipo de cambio."""
+    with scheduler.app.app_context():
+        # Importamos aquí dentro para evitar referencias circulares
+        # AJUSTA ESTE IMPORT según dónde guardaste el modelo ExchangeRate
+        from .models.exchange_rate import ExchangeRate, db
+        from flask import current_app
+
+        print("Ejecutando tarea automática de Tipo de Cambio...")
+
+        hoy = date.today()
+        # Verificar si ya existe para no gastar saldo de API por gusto
+        # Asumiendo que ExchangeRate tiene campos: currency, date, etc.
+        if ExchangeRate.query.filter_by(date=hoy, currency='USD').first():
+            print("El tipo de cambio de hoy ya existe.")
+            return
+
+        try:
+            api_key = current_app.config.get('SUNAT_API_KEY', '')
+            url = "https://api.decolecta.com/v1/tipo-cambio/sunat"
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+
+            # Guardar en BD
+            nuevo_cambio = ExchangeRate(
+                currency='USD',
+                buy_rate=data.get('compra') or data.get('buy_price'),
+                sell_rate=data.get('venta') or data.get('sell_price'),
+                date=hoy
+            )
+
+            db.session.add(nuevo_cambio)
+            db.session.commit()
+            print(f"ÉXITO: Tipo de cambio guardado. Venta: {nuevo_cambio.sell_rate}")
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"ERROR actualizando tipo de cambio: {str(e)}")
 
 
 def create_app(config_class=Config):
@@ -27,18 +82,29 @@ def create_app(config_class=Config):
 
     # --- 2. INICIALIZACIÓN DE EXTENSIONES ---
     db.init_app(app)
-
-    # AGREGADO: Inicializar Migrate para poder hacer cambios en la BD a futuro
     migrate = Migrate(app, db)
 
-    # AJUSTE CORS: Si usas credentials=True, evita el "*" si te da problemas.
-    # Por ahora lo dejo así, pero si tu frontend falla, cambia "*" por la URL de tu frontend
     cors.init_app(
         app,
         resources={r"/api/*": {"origins": "*"}},
         allow_headers=["Authorization", "Content-Type"],
         expose_headers=["Authorization"],
         supports_credentials=True
+    )
+
+    # --- CONFIGURACIÓN E INICIO DEL SCHEDULER ---
+    app.config['SCHEDULER_API_ENABLED'] = True
+    scheduler.init_app(app)
+    scheduler.start()
+
+    # Agregar el trabajo (Job) para las 8:00 AM
+    scheduler.add_job(
+        id='actualizar_cambio_8am',
+        func=tarea_actualizar_tipo_cambio,
+        trigger='cron',
+        hour=8,
+        minute=0,
+        replace_existing=True
     )
 
     # --- 3. REGISTRO DE BLUEPRINTS (Rutas) ---
@@ -88,7 +154,6 @@ def create_app(config_class=Config):
     # --- 5. CREACIÓN DE BASE DE DATOS Y SEEDING ---
     with app.app_context():
         os.makedirs(app.instance_path, exist_ok=True)
-        # db.create_all() verifica si las tablas existen antes de crear
         db.create_all()
         _seed_database()
 
@@ -100,7 +165,6 @@ def _seed_database():
     """
     Crea los roles, permisos y catálogos por defecto.
     """
-    # --- 1. PERMISOS ---
     print("Verificando permisos...")
     permissions_list = [
         Permission(name='view:home', display_name='Novedades', description='Acceso a la página de bienvenida'),
@@ -108,23 +172,32 @@ def _seed_database():
         Permission(name='view:modulo_2', display_name='Módulo 2', description='Acceso al Módulo 2'),
         Permission(name='view:modulo_3', display_name='Módulo 3', description='Acceso al Módulo 3'),
         Permission(name='access:admin_panel', display_name='Panel de Admin', description='Acceso para gestionar roles'),
-        Permission(name='view:cost_centers', display_name='Ver Centros de Costos', description='Ver la lista de centros de costos'),
-        Permission(name='create:cost_centers', display_name='Crear Centros de Costos', description='Crear nuevos centros de costos'),
-        Permission(name='edit:cost_centers', display_name='Editar Centros de Costos', description='Editar centros de costos'),
-        Permission(name='view:purchases', display_name='Ver Órdenes de Compra', description='Ver la lista de órdenes de compra'),
-        Permission(name='create:purchases', display_name='Crear Órdenes de Compra', description='Crear nuevas órdenes de compra'),
+        Permission(name='view:cost_centers', display_name='Ver Centros de Costos',
+                   description='Ver la lista de centros de costos'),
+        Permission(name='create:cost_centers', display_name='Crear Centros de Costos',
+                   description='Crear nuevos centros de costos'),
+        Permission(name='edit:cost_centers', display_name='Editar Centros de Costos',
+                   description='Editar centros de costos'),
+        Permission(name='view:purchases', display_name='Ver Órdenes de Compra',
+                   description='Ver la lista de órdenes de compra'),
+        Permission(name='create:purchases', display_name='Crear Órdenes de Compra',
+                   description='Crear nuevas órdenes de compra'),
         Permission(name='view:catalog', display_name='Ver Catálogo', description='Ver lista de productos y categorías'),
-        Permission(name='manage:catalog', display_name='Gestionar Catálogo', description='Crear/editar productos y categorías'),
+        Permission(name='manage:catalog', display_name='Gestionar Catálogo',
+                   description='Crear/editar productos y categorías'),
         Permission(name='view:inventory', display_name='Ver Inventario', description='Ver stock actual'),
-        Permission(name='manage:inventory', display_name='Gestionar Inventario', description='Hacer recepciones y ajustes de stock'),
-        Permission(name='view:transfers', display_name='Ver Movimientos de Stock', description='Ver la lista de transferencias de stock'),
-        Permission(name='manage:transfers', display_name='Gestionar Movimientos', description='Crear transferencias y enviar GRE a SUNAT'),
-        # --- NUEVOS PERMISOS RRHH ---
+        Permission(name='manage:inventory', display_name='Gestionar Inventario',
+                   description='Hacer recepciones y ajustes de stock'),
+        Permission(name='view:transfers', display_name='Ver Movimientos de Stock',
+                   description='Ver la lista de transferencias de stock'),
+        Permission(name='manage:transfers', display_name='Gestionar Movimientos',
+                   description='Crear transferencias y enviar GRE a SUNAT'),
         Permission(name='view:employees', display_name='Ver Empleados', description='Ver lista de empleados'),
-        Permission(name='manage:employees', display_name='Gestionar Empleados', description='Crear, editar y eliminar empleados'),
-        Permission(name='admin:system_setup', display_name='Configuración del Sistema', description='Acceso a configuración avanzada y cargas masivas'),
+        Permission(name='manage:employees', display_name='Gestionar Empleados',
+                   description='Crear, editar y eliminar empleados'),
+        Permission(name='admin:system_setup', display_name='Configuración del Sistema',
+                   description='Acceso a configuración avanzada y cargas masivas'),
         Permission(name='view:ubigeo', display_name='Ver Ubigeos', description='Ver y buscar ubicaciones geográficas'),
-        # --- NUEVOS PERMISOS CAJA ---
         Permission(name='view:treasury', display_name='Ver Caja', description='Ver movimientos de caja'),
         Permission(name='manage:treasury', display_name='Gestionar Caja', description='Registrar ingresos y egresos')
     ]
@@ -137,7 +210,6 @@ def _seed_database():
 
     db.session.commit()
 
-    # --- 2. CATÁLOGOS (Cada uno en su propio check) ---
     if Category.query.count() == 0:
         print("Creando categorías por defecto...")
         cat_cables = Category(name='Cables', description='Cables eléctricos y de red')
@@ -149,14 +221,14 @@ def _seed_database():
             sku='CB-THW-14',
             name='CABLE/THW #14',
             unit_of_measure='Metros',
-            standard_price=2.50,  # <-- Precio
+            standard_price=2.50,
             category_id=cat_cables.id
         )
         prod_clavo = Product(
             sku='HR-CLV-3',
             name='Clavos de 3"',
             unit_of_measure='Kilos',
-            standard_price=15.00,  # <-- Precio
+            standard_price=15.00,
             category_id=cat_herr.id
         )
         db.session.add_all([prod_cable, prod_clavo])
@@ -188,7 +260,6 @@ def _seed_database():
         ])
         db.session.commit()
 
-    # --- 3. ROLES (Se ejecutan al final) ---
     permissions_map = {p.name: p for p in Permission.query.all()}
 
     admin_role = Role.query.filter_by(name='Admin').first()
@@ -197,7 +268,6 @@ def _seed_database():
         admin_role = Role(name='Admin')
         db.session.add(admin_role)
 
-    # Actualizar permisos del Admin (siempre debe tener todos)
     admin_role.permissions = list(permissions_map.values())
     db.session.commit()
 

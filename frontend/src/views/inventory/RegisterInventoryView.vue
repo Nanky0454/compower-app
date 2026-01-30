@@ -32,6 +32,7 @@ const formData = reactive({
   items: [],
   provider_id: null,
   provider_search: '',
+  currency: 'PEN', // <--- NUEVO CAMPO: Por defecto Soles
 })
 
 // --- Estado del Buscador de Proveedores ---
@@ -151,6 +152,7 @@ function addItem() {
     })
   }
 
+  // Reset del formulario temporal
   tempItem.product_id = null
   tempItem.product_data = null
   tempItem.quantity = 1
@@ -162,9 +164,13 @@ function removeItem(index) {
   formData.items.splice(index, 1)
 }
 
-// --- Totales ---
+// --- Totales y Helpers ---
 const totalGeneral = computed(() => {
   return formData.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0)
+})
+
+const currencySymbol = computed(() => {
+    return formData.currency === 'USD' ? '$' : 'S/.'
 })
 
 // --- Enviar al Backend ---
@@ -181,6 +187,7 @@ async function handleSubmit() {
       warehouse_id: formData.warehouse_id,
       invoice_number: formData.invoice_number,
       provider_id: formData.provider_id,
+      currency: formData.currency, // <--- NUEVO: Enviamos la moneda seleccionada
       items: formData.items.map(i => ({
         product_id: i.product_id,
         quantity: i.quantity,
@@ -274,13 +281,28 @@ async function handleSubmit() {
             </div>
 
             <div class="space-y-2">
+                <Label class="font-semibold text-gray-700">Moneda del Documento</Label>
+                <Select v-model="formData.currency">
+                  <SelectTrigger class="bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PEN">Soles (S/.)</SelectItem>
+                    <SelectItem value="USD">Dólares ($)</SelectItem>
+                  </SelectContent>
+                </Select>
+            </div>
+
+            <div class="space-y-2">
               <Label class="font-semibold text-gray-700">Nro. Factura / Guía</Label>
               <Input v-model="formData.invoice_number" placeholder="Ej: F001-00004520" class="bg-white font-mono" />
             </div>
 
             <div class="pt-4 border-t mt-4 bg-gray-50 -mx-6 px-6 pb-2">
               <div class="flex justify-between items-center text-sm text-gray-500 mb-1">Total Estimado</div>
-              <div class="text-2xl font-bold text-gray-900">S/. {{ totalGeneral.toFixed(2) }}</div>
+              <div class="text-2xl font-bold text-gray-900">
+                  {{ currencySymbol }} {{ totalGeneral.toFixed(2) }}
+              </div>
             </div>
 
             <Button class="w-full bg-gray-900 hover:bg-black text-white" :disabled="isSubmitting" @click="handleSubmit">
@@ -356,7 +378,9 @@ async function handleSubmit() {
               </div>
 
               <div class="md:col-span-2 space-y-2">
-                <Label class="text-xs font-bold text-gray-500 uppercase">Costo Unit.</Label>
+                <Label class="text-xs font-bold text-gray-500 uppercase">
+                    Costo Unit. ({{ currencySymbol }})
+                </Label>
                 <Input type="number" v-model="tempItem.unit_price" min="0" step="0.01" class="text-right" />
               </div>
 
@@ -373,7 +397,7 @@ async function handleSubmit() {
                   <TableHead class="w-[40%]">Producto</TableHead>
                   <TableHead class="text-center w-[15%]">Ubicación</TableHead>
                   <TableHead class="text-right w-[10%]">Cant.</TableHead>
-                  <TableHead class="text-right w-[15%]">Costo</TableHead>
+                  <TableHead class="text-right w-[15%]">Costo ({{ currencySymbol }})</TableHead>
                   <TableHead class="text-right w-[15%]">Total</TableHead>
                   <TableHead class="w-[5%]"></TableHead>
                 </TableRow>
@@ -400,7 +424,7 @@ async function handleSubmit() {
                       <Input type="number" v-model="item.unit_price" class="h-8 w-24 ml-auto text-right border-transparent group-hover:border-gray-300 focus:border-blue-500 bg-transparent group-hover:bg-white transition-all" step="0.01"/>
                   </TableCell>
                   <TableCell class="text-right font-medium text-gray-900 p-2 align-top pt-3">
-                    S/. {{ (item.quantity * item.unit_price).toFixed(2) }}
+                    {{ currencySymbol }} {{ (item.quantity * item.unit_price).toFixed(2) }}
                   </TableCell>
                   <TableCell class="p-2 align-top text-center pt-2">
                     <Button variant="ghost" size="icon" class="text-gray-400 hover:text-red-600 hover:bg-red-50" @click="removeItem(idx)">

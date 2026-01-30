@@ -1,7 +1,10 @@
+from datetime import date
+
 from flask import Blueprint, jsonify, request, send_file, current_app
 
 from .. import Provider
 from ..extensions import db
+from ..models.exchange_rate import ExchangeRate
 from ..models.warehouse import Warehouse
 from ..models.purchase_order import PurchaseOrder, PurchaseOrderItem, OrderStatus, DocumentType
 from ..models.inventory_models import InventoryStock, InventoryTransaction
@@ -103,14 +106,13 @@ def get_warehouses(payload):
         return jsonify(error=str(e)), 500
 
 
-# --- API 2: Procesar la Recepción (CON FIX DE LISTAS) ---
+# --- API 2: Procesar la Recepción (CON LÓGICA DE MONEDA Y PROMEDIO) ---
 @inventory_api.route('/receive', methods=['POST'])
 @requires_auth(required_permission='manage:inventory')
 def receive_inventory(payload):
     data = request.get_json()
     user_id = payload['sub']
 
-    # Validaciones básicas
     required_fields = ['warehouse_id', 'order_id', 'items']
     if not all(field in data for field in required_fields):
         return jsonify(error="Faltan datos (warehouse_id, order_id, items)"), 400
@@ -118,9 +120,29 @@ def receive_inventory(payload):
     try:
         warehouse_id = data['warehouse_id']
         order_id = data['order_id']
-        invoice_number = data.get('invoice_number')  # Factura opcional
+        invoice_number = data.get('invoice_number')
 
-        # 1. Crear la Cabecera de Recepción (ProductReceipt)
+        # 1. OBTENER ORDEN Y TIPO DE CAMBIO
+        order = PurchaseOrder.query.get(order_id)
+        if not order:
+            return jsonify(error="Orden de compra no encontrada"), 404
+
+        # Lógica de Tipo de Cambio
+        tipo_cambio_venta = 1.0
+        moneda_orden = getattr(order, 'currency', 'PEN')  # Asume PEN si no existe campo currency
+
+        if moneda_orden == 'USD':
+            # Buscar el tipo de cambio de HOY (o de la fecha de la orden si prefieres)
+            tc = ExchangeRate.query.filter_by(date=date.today(), currency='USD').first()
+            if not tc:
+                # OJO: Si no hay tipo de cambio, es peligroso inventar uno.
+                # Retornamos error para obligar a que se ejecute el cron o se cargue manual.
+                return jsonify(
+                    error=f"No se encontró el Tipo de Cambio (USD) para hoy ({date.today()}). Por favor actualízalo."), 400
+
+            tipo_cambio_venta = float(tc.sell_rate)
+
+        # 2. Crear Cabecera
         new_receipt = ProductReceipt(
             purchase_order_id=order_id,
             warehouse_id=warehouse_id,
@@ -128,15 +150,15 @@ def receive_inventory(payload):
             created_by=user_id
         )
         db.session.add(new_receipt)
-        db.session.flush()  # ID necesario para los items
+        db.session.flush()
 
-        # 2. Recorrer items
+        # 3. Recorrer items
         for item_data in data['items']:
             po_item_id = item_data['po_item_id']
             product_id = item_data['product_id']
             quantity_received = float(item_data['quantity_received'])
 
-            # --- FIX: SANITIZAR LOCATION (Evitar error de lista) ---
+            # Sanitizar Location
             raw_loc = item_data.get('location')
             if isinstance(raw_loc, list):
                 location = ", ".join(str(x) for x in raw_loc)
@@ -144,17 +166,15 @@ def receive_inventory(payload):
                 location = str(raw_loc).strip()
             else:
                 location = None
-            # -------------------------------------------------------
 
             if quantity_received <= 0:
                 continue
 
-                # A. Actualizar item de la orden original
             po_item = PurchaseOrderItem.query.get(po_item_id)
             if po_item:
                 po_item.product_id = product_id
 
-            # B. Crear Detalle de Recepción (Historial)
+            # Crear Detalle Recepción
             receipt_item = ProductReceiptItem(
                 receipt_id=new_receipt.id,
                 product_id=product_id,
@@ -164,7 +184,7 @@ def receive_inventory(payload):
             )
             db.session.add(receipt_item)
 
-            # C. Gestión de Stock (InventoryStock)
+            # Gestión de Stock
             stock_entry = InventoryStock.query.filter_by(
                 product_id=product_id,
                 warehouse_id=warehouse_id
@@ -178,10 +198,34 @@ def receive_inventory(payload):
                 )
                 db.session.add(stock_entry)
 
-            # D. Actualizar Producto (Ubicación maestra y Precio Promedio)
+            # --- CÁLCULO DE PRECIO PROMEDIO PONDERADO (CORREGIDO) ---
             product = Product.query.get(product_id)
 
-            # Agregar ubicación al maestro si es nueva
+            # A. Obtener el precio de entrada y CONVERTIR A SOLES si es necesario
+            precio_unitario_original = float(po_item.unit_price) if po_item else 0.0
+            precio_entrada_soles = precio_unitario_original * tipo_cambio_venta
+
+            # B. Datos actuales
+            stock_actual_total = db.session.query(func.sum(InventoryStock.quantity)).filter_by(
+                product_id=product_id).scalar() or 0.0
+            stock_actual_total = float(stock_actual_total)
+            costo_promedio_actual = float(product.standard_price or 0.0)
+
+            # C. Fórmula Ponderada
+            # Si el stock global es 0 o negativo, el nuevo precio es simplemente el precio de entrada.
+            # Esto soluciona el problema de "promediar con 0".
+            if stock_actual_total <= 0:
+                new_avg_price = precio_entrada_soles
+            else:
+                valor_total_actual = stock_actual_total * costo_promedio_actual
+                valor_entrada = quantity_received * precio_entrada_soles
+                nuevo_stock_total = stock_actual_total + quantity_received
+
+                new_avg_price = (valor_total_actual + valor_entrada) / nuevo_stock_total
+
+            product.standard_price = new_avg_price
+
+            # Actualizar Ubicación (Append)
             if location:
                 if not product.location:
                     product.location = location
@@ -189,41 +233,26 @@ def receive_inventory(payload):
                     existing_locs = [l.strip() for l in product.location.split(',')]
                     if location not in existing_locs:
                         existing_locs.append(location)
-                        product.location = ",".join(existing_locs)
+                        product.location = ", ".join(existing_locs)
 
-            # Cálculo Precio Promedio
-            current_total_stock = db.session.query(db.func.sum(InventoryStock.quantity)).filter_by(
-                product_id=product_id).scalar() or 0.0
-            current_total_stock = float(current_total_stock)
-            current_avg_price = float(product.standard_price or 0.0)
+            # Aumentar Stock Físico
+            stock_entry.quantity = float(stock_entry.quantity) + quantity_received
 
-            incoming_price = float(po_item.unit_price) if po_item else 0.0
-
-            current_total_value = current_total_stock * current_avg_price
-            incoming_total_value = quantity_received * incoming_price
-            new_total_quantity = current_total_stock + quantity_received
-
-            if new_total_quantity > 0:
-                new_avg_price = (current_total_value + incoming_total_value) / new_total_quantity
-                product.standard_price = new_avg_price
-
-            # E. Aumentar Stock Real
-            new_stock_quantity = float(stock_entry.quantity) + quantity_received
-            stock_entry.quantity = new_stock_quantity
-
-            # F. Crear Transacción Kardex
+            # Kardex
+            moneda_txt = "USD" if moneda_orden == 'USD' else "PEN"
             transaction = InventoryTransaction(
                 product_id=product_id,
                 warehouse_id=warehouse_id,
                 quantity_change=quantity_received,
-                new_quantity=new_stock_quantity,
+                new_quantity=stock_entry.quantity,
                 type="Recepción de Compra",
                 user_id=user_id,
-                reference=f"Orden #{order_id} - {invoice_number or 'S/F'}"
+                # Guardamos referencia del TC usado para auditoría
+                reference=f"OC #{order_id} ({moneda_txt} -> S/ {tipo_cambio_venta})"
             )
             db.session.add(transaction)
 
-        # 3. Actualizar estado de la OC a "Recibida"
+        # Actualizar estado OC
         order = PurchaseOrder.query.get(order_id)
         received_status = OrderStatus.query.filter_by(name='Recibida').first()
         if order and received_status:
@@ -235,7 +264,7 @@ def receive_inventory(payload):
     except Exception as e:
         db.session.rollback()
         import traceback
-        traceback.print_exc()  # Ver error completo en consola
+        traceback.print_exc()
         print(f"--- ERROR AL RECEPCIONAR: {str(e)} ---")
         return jsonify(error=str(e)), 500
 
@@ -248,7 +277,7 @@ def get_stock_report(payload):
         query = InventoryStock.query.options(
             joinedload(InventoryStock.product).joinedload(Product.category),
             joinedload(InventoryStock.warehouse)
-        ).filter(InventoryStock.quantity > 0)
+        )
 
         stock_entries = query.all()
         report = []
@@ -411,18 +440,47 @@ def get_products_in_warehouse(payload, warehouse_id):
 
 
 # --- API 2: Ingreso Directo (Sin OC Previa) ---
+from flask import request, jsonify
+from datetime import date
+from sqlalchemy import func
+
+
+# Asegúrate de importar tus modelos y extensiones
+# from app import db
+# from app.models import Product, ProductReceipt, ProductReceiptItem, InventoryStock, InventoryTransaction, Provider, ExchangeRate
+
 @inventory_api.route('/direct-receive', methods=['POST'])
 @requires_auth(required_permission='manage:inventory')
 def direct_receive_inventory(payload):
     data = request.get_json()
     user_id = payload['sub']
 
-    # 1. Validar Datos
+    # 1. VALIDACIÓN BÁSICA
     if not data.get('warehouse_id') or not data.get('items'):
         return jsonify(error="Faltan datos obligatorios (Almacén o Items)."), 400
 
     try:
-        # 2. GESTIÓN DE PROVEEDOR
+        # ---------------------------------------------------------
+        # 2. GESTIÓN DE TIPO DE CAMBIO (Moneda)
+        # ---------------------------------------------------------
+        currency = data.get('currency', 'PEN')
+        tipo_cambio_venta = 1.0
+
+        if currency == 'USD':
+            tc = ExchangeRate.query.filter_by(date=date.today(), currency='USD').first()
+            if not tc:
+                # Fallback al último TC conocido
+                tc = ExchangeRate.query.filter_by(currency='USD').order_by(ExchangeRate.date.desc()).first()
+
+            if not tc:
+                return jsonify(error="Error: No se encontró Tipo de Cambio para procesar ingreso en Dólares."), 400
+
+            tipo_cambio_venta = float(tc.sell_rate)
+
+        # ---------------------------------------------------------
+        # 3. GESTIÓN DE PROVEEDOR
+        # ---------------------------------------------------------
+        # Ahora lo guardamos directamente en la Recepción, no en una OC
         provider_id = data.get('provider_id')
         target_provider_id = None
 
@@ -430,81 +488,55 @@ def direct_receive_inventory(payload):
             target_provider_id = provider_id
         else:
             # Fallback: Proveedor Genérico
-            generic_provider = Provider.query.filter_by(ruc='99999999999').first()
+            generic_ruc = '99999999999'
+            generic_provider = Provider.query.filter_by(ruc=generic_ruc).first()
             if not generic_provider:
-                generic_provider = Provider(ruc='99999999999', name='INGRESO MANUAL / AJUSTE', address='INTERNO')
+                generic_provider = Provider(ruc=generic_ruc, name='INGRESO MANUAL / AJUSTE', address='INTERNO')
                 db.session.add(generic_provider)
                 db.session.flush()
             target_provider_id = generic_provider.id
 
-        # 3. GESTIÓN DE ESTADOS Y TIPOS
-        status_recibida = OrderStatus.query.filter_by(name='Recibida').first()
-        if not status_recibida:
-            status_recibida = OrderStatus(name='Recibida')
-            db.session.add(status_recibida)
-            db.session.flush()
-
-        doc_type_guia = DocumentType.query.filter_by(name='Guía de Remisión').first()
-        if not doc_type_guia:
-            doc_type_guia = DocumentType.query.first()
-            if not doc_type_guia:
-                doc_type_guia = DocumentType(name='Ingreso Interno')
-                db.session.add(doc_type_guia)
-                db.session.flush()
-
-        # 4. Crear OC "Fantasma"
-        import uuid
-        unique_suffix = str(uuid.uuid4())[:8]
-
-        invoice_num = data.get('invoice_number', 'SN')
-        dummy_order = PurchaseOrder(
-            document_number=f"MAN-{invoice_num}-{unique_suffix}",
-            owner_id=user_id,
-            provider_id=target_provider_id,
-            document_type_id=doc_type_guia.id,
-            status_id=status_recibida.id,
-            order_type='OC',
-            reference=f"Ingreso directo Ref: {invoice_num}"
-        )
-        db.session.add(dummy_order)
-        db.session.flush()
-
-        # 5. Crear la Recepción (ProductReceipt)
+        # ---------------------------------------------------------
+        # 4. CREACIÓN DE LA RECEPCIÓN (LIMPIA, SIN OC)
+        # ---------------------------------------------------------
         new_receipt = ProductReceipt(
-            purchase_order_id=dummy_order.id,
+            purchase_order_id=None,  # <--- AQUÍ ESTÁ LA MAGIA: NULL
+            provider_id=target_provider_id,  # <--- Guardamos quién envió la mercadería
             warehouse_id=data['warehouse_id'],
-            invoice_number=invoice_num,
+            invoice_number=data.get('invoice_number', 'SN'),
             created_by=user_id
         )
         db.session.add(new_receipt)
-        db.session.flush()
+        db.session.flush()  # Obtenemos el ID de la recepción
 
-        # 6. Procesar Items
+        # ---------------------------------------------------------
+        # 5. PROCESAMIENTO DE ITEMS (Stock, Costos, Kardex)
+        # ---------------------------------------------------------
         for item in data['items']:
             product_id = item['product_id']
             qty = float(item['quantity'])
-            price = float(item.get('unit_price', 0))
 
-            # --- FIX: SANITIZAR LOCATION (Evitar error de lista) ---
+            # Precio ingresado por usuario
+            raw_unit_price = float(item.get('unit_price', 0))
+
+            # Valoración en Soles (Contable)
+            price_in_soles = raw_unit_price * tipo_cambio_venta
+
+            # Ubicación
             raw_loc = item.get('location')
-            location = None
-            if isinstance(raw_loc, list):
-                # Si es lista ['A', 'B'], convertir a "A, B"
-                location = ", ".join(str(x) for x in raw_loc)
-            elif raw_loc:
-                location = str(raw_loc).strip()
-            # -------------------------------------------------------
+            location = str(raw_loc).strip() if raw_loc else None
 
-            # A) Item Recepción
+            # A) Crear Item de Recepción
             receipt_item = ProductReceiptItem(
                 receipt_id=new_receipt.id,
                 product_id=product_id,
                 quantity=qty,
-                location=location
+                location=location,
+                po_item_id=None  # <--- NULL: No hay item de OC vinculado
             )
             db.session.add(receipt_item)
 
-            # B) Stock
+            # B) Obtener o Crear Stock en Almacén
             stock_entry = InventoryStock.query.filter_by(
                 product_id=product_id,
                 warehouse_id=data['warehouse_id']
@@ -514,59 +546,69 @@ def direct_receive_inventory(payload):
                 stock_entry = InventoryStock(
                     product_id=product_id,
                     warehouse_id=data['warehouse_id'],
-                    quantity=0
+                    quantity=0.0
                 )
                 db.session.add(stock_entry)
 
-            # C) Recalcular Costo Promedio y Ubicación
+            # C) CÁLCULO PRECIO PROMEDIO PONDERADO (CPP) - GLOBAL
             product = Product.query.get(product_id)
 
+            current_total_qty = db.session.query(func.sum(InventoryStock.quantity)).filter_by(
+                product_id=product_id).scalar() or 0.0
+            current_total_qty = float(current_total_qty)
+            current_avg_price = float(product.standard_price or 0.0)
+
+            # Lógica CPP
+            if current_total_qty <= 0:
+                product.standard_price = price_in_soles
+            else:
+                current_val = current_total_qty * current_avg_price
+                incoming_val = qty * price_in_soles
+                final_qty = current_total_qty + qty
+
+                if final_qty > 0:
+                    product.standard_price = (current_val + incoming_val) / final_qty
+
+            # D) Actualizar Ubicación (Concatenar si es nueva)
             if location:
-                # Actualizar ubicación del producto maestro (Append)
                 if not product.location:
                     product.location = location
                 else:
-                    # Evitar duplicados simples
                     existing = [l.strip() for l in product.location.split(',')]
                     new_locs = [l.strip() for l in location.split(',')]
+                    changed = False
                     for nl in new_locs:
                         if nl not in existing:
                             existing.append(nl)
-                    product.location = ", ".join(existing)
+                            changed = True
+                    if changed:
+                        product.location = ", ".join(existing)
 
-            # Cálculo Ponderado
-            current_total_qty = db.session.query(func.sum(InventoryStock.quantity)).filter_by(
-                product_id=product_id).scalar() or 0
-            current_total_qty = float(current_total_qty)
-            current_price = float(product.standard_price or 0)
-
-            new_total_val = (current_total_qty * current_price) + (qty * price)
-            new_total_qty_global = current_total_qty + qty
-
-            if new_total_qty_global > 0:
-                product.standard_price = new_total_val / new_total_qty_global
-
-            # D) Aumentar Stock Físico
+            # E) Aumentar Stock Físico
             stock_entry.quantity = float(stock_entry.quantity) + qty
 
-            # E) Kardex
-            kardex = InventoryTransaction(
+            # F) Registrar en Kardex
+            ref_text = f"Ingreso Directo {data.get('invoice_number', 'SN')}"
+            if currency == 'USD':
+                ref_text += f" (TC: {tipo_cambio_venta:.3f})"
+
+            transaction = InventoryTransaction(
                 product_id=product_id,
                 warehouse_id=data['warehouse_id'],
                 quantity_change=qty,
                 new_quantity=stock_entry.quantity,
                 type="Ingreso Manual",
                 user_id=user_id,
-                reference=f"Fac. {invoice_num}"
+                reference=ref_text
             )
-            db.session.add(kardex)
+            db.session.add(transaction)
 
+        # 6. COMMIT FINAL
         db.session.commit()
-        return jsonify(success=True, message="Ingreso registrado correctamente")
+        return jsonify(success=True, message="Ingreso registrado correctamente", receipt_id=new_receipt.id)
 
     except Exception as e:
         db.session.rollback()
-        print(f"--- ERROR INGRESO MANUAL: {str(e)} ---")
         import traceback
         traceback.print_exc()
-        return jsonify(error=str(e)), 500
+        return jsonify(error=f"Error al procesar ingreso: {str(e)}"), 500

@@ -88,7 +88,7 @@ const routes = [
   },
     {
     path: '/purchases/:id/edit',
-    name: 'EitPurchase',
+    name: 'EditPurchase',
     component: EditPurchaseView,
     meta: { title: 'Editar Orden' }
   },

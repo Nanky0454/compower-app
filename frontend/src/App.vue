@@ -1,7 +1,7 @@
 <script setup>
 import { useAuth0 } from '@auth0/auth0-vue'
 import { Button } from '@/components/ui/button'
-import { computed, watch, ref } from 'vue' // <-- Añadido 'ref'
+import { computed, watch, ref } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 
 // 1. Importar Accordion
@@ -27,8 +27,8 @@ import {
 
 // Importar iconos
 import {
-  LayoutDashboard, BarChart2, FileText,
-  MoreHorizontal, LogOut, User, Settings, Briefcase, ShoppingBagIcon,Archive,Package, FolderTree, Building2, Users, DollarSign
+  MoreHorizontal, LogOut, Settings, Briefcase, ShoppingBagIcon,
+  Archive, Users, DollarSign
 } from 'lucide-vue-next'
 
 import { Toaster } from '@/components/ui/toast'
@@ -36,7 +36,7 @@ import { Toaster } from '@/components/ui/toast'
 // Lógica de Auth0
 const { loginWithRedirect, logout, user, isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0()
 
-// Lógica 'isAdmin' (igual que antes)
+// Lógica 'isAdmin'
 const AUTH0_NAMESPACE = 'https://appcompower.com'
 const isAdmin = computed(() => {
   const rolesKey = AUTH0_NAMESPACE + '/roles';
@@ -47,33 +47,78 @@ const isAdmin = computed(() => {
   return false;
 })
 
-// Lógica de login/logout (igual que antes)
-function handleLogin() { loginWithRedirect() }
 function handleLogout() { logout({ logoutParams: { returnTo: window.location.origin } }) }
 
-// Título de la página (igual que antes)
 const route = useRoute()
 const currentPageTitle = computed(() => route.meta.title || 'Dashboard')
 
-// --- ¡NUEVA LÓGICA DE SIDEBAR DINÁMICO! ---
+// --- LÓGICA DE NOTIFICACIONES Y PERMISOS ---
 
-// 2. Definir TODOS los módulos posibles de la app
-const navModules = [
+const userPermissions = ref([])
+const pendingPurchasesCount = ref(0) // Estado para el numerito rojo
+
+// Función para contar: Aprobadas + Tipo OC
+async function fetchDashboardCounts() {
+  if (!isAuthenticated.value) return
+  try {
+    const token = await getAccessTokenSilently()
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+
+      // --- FILTRO: Aprobadas Y de tipo OC ---
+      const pendientes = data.filter(order =>
+          order.status === 'Aprobada' &&
+          order.order_type === 'OC'
+      )
+      pendingPurchasesCount.value = pendientes.length
+    }
+  } catch (error) {
+    console.error("Error cargando contadores:", error)
+  }
+}
+
+// Función para permisos
+async function fetchUserPermissions() {
+  if (!isAuthenticated.value) return
+  try {
+    const token = await getAccessTokenSilently()
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/my-permissions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!response.ok) throw new Error('No se pudieron cargar los permisos')
+    const data = await response.json()
+    userPermissions.value = data.permissions || []
+  } catch (error) {
+    console.error("Error cargando permisos:", error)
+    userPermissions.value = []
+  }
+}
+
+// Módulos de navegación (COMPUTED para que reaccione al contador)
+const navModules = computed(() => [
   {
-    title: 'Modulo de Proyectos', // <-- Renombrado
+    title: 'Modulo de Proyectos',
     icon: Briefcase,
-    permission: 'view:cost_centers', // <-- Permiso actualizado
+    permission: 'view:cost_centers',
     links: [
-      { name: 'Centro de costo', path: '/cost-centers' }, // <-- Renombrado
-      { name: 'Site', path: '/projects/sites' } // <-- Nuevo link
+      { name: 'Centro de costo', path: '/cost-centers' },
+      { name: 'Site', path: '/projects/sites' }
     ]
   },
   {
-    title: 'Modulo de Compras', // <-- Renombrado
+    title: 'Modulo de Compras',
     icon: ShoppingBagIcon,
-    permission: 'view:purchases', // <-- Permiso actualizado
+    permission: 'view:purchases',
     links: [
-      { name: 'Ver Compras', path: '/purchases' } // <-- Path actualizado
+      {
+        name: 'Ver Compras',
+        path: '/purchases',
+        // Inyectamos el contador aquí
+      }
     ]
   },
   {
@@ -93,38 +138,18 @@ const navModules = [
       { name: 'Movimientos', path: '/treasury' }
     ]
   }
-]
+])
 
-// 3. Un 'ref' para guardar los permisos del usuario
-const userPermissions = ref([])
-
-// 4. Función para llamar a la API /api/my-permissions
-async function fetchUserPermissions() {
-  if (!isAuthenticated.value) return
-  try {
-    const token = await getAccessTokenSilently()
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/my-permissions`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    if (!response.ok) throw new Error('No se pudieron cargar los permisos')
-    const data = await response.json()
-    userPermissions.value = data.permissions || []
-  } catch (error) {
-    console.error("Error cargando permisos:", error)
-    userPermissions.value = []
-  }
-}
-
-// 5. Lógica de redirección y carga de permisos
+// Watcher para cargar datos al entrar
 watch(
   [isAuthenticated, isLoading],
   ([isAuth, loading]) => {
     if (!loading && !isAuth) {
       loginWithRedirect({ appState: { targetUrl: route.path } })
     }
-    // Si está autenticado, cargar sus permisos
     if (isAuth) {
       fetchUserPermissions()
+      fetchDashboardCounts() // <-- Carga el contador
     }
   },
   { immediate: true }
@@ -159,96 +184,99 @@ watch(
                   <ul class="space-y-1">
                     <li v-for="link in module.links" :key="link.name">
                       <RouterLink :to="link.path" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          {{ link.name }}
+
+                        <Button
+                          :variant="isActive ? 'secondary' : 'ghost'"
+                          class="w-full h-8 flex items-center justify-between px-2"
+                          @click="navigate"
+                        >
+                          <span>{{ link.name }}</span>
+
+                          <span
+                            v-if="link.badge && link.badge > 0"
+                            class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2 h-5 min-w-[20px] flex items-center justify-center shadow-sm"
+                          >
+                            {{ link.badge }}
+                          </span>
                         </Button>
+
                       </RouterLink>
                     </li>
                   </ul>
                 </AccordionContent>
               </AccordionItem>
             </template>
+
             <AccordionItem v-if="userPermissions.includes('view:inventory') || userPermissions.includes('manage:inventory')" value="inventory">
-                <AccordionTrigger class="hover:no-underline">
+
+              <AccordionTrigger class="hover:no-underline pr-4">
+                <div class="flex items-center w-full justify-between">
                   <div class="flex items-center">
                     <Archive class="h-4 w-4 mr-2" />
                     <span>Modulo de Inventario</span>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent class="pl-4">
-                  <ul class="space-y-1">
-                    <li v-if="userPermissions.includes('manage:inventory')">
-                      <RouterLink to="/inventory" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Recepcion
-                        </Button>
-                      </RouterLink>
-                    </li>
-                    <li v-if="userPermissions.includes('manage:inventory')">
-                      <RouterLink to="/inventory/stock-transfer-report" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Reportes
-                        </Button>
-                      </RouterLink>
-                    </li>
-                    <li v-if="userPermissions.includes('manage:transfers')">
-                      <RouterLink to="/inventory/transfers" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Transferencias
-                        </Button>
-                      </RouterLink>
-                    </li>
-                    <li v-if="userPermissions.includes('view:inventory')">
-                      <RouterLink to="/inventory/stock-report" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Inventario
-                        </Button>
-                      </RouterLink>
-                    </li>
-                    <!-- <li v-if="userPermissions.includes('manage:inventory')">
-                      <RouterLink to="/inventory/warehouses" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Gestionar Almacenes
-                        </Button>
-                      </RouterLink>
-                    </li> -->
-                    <li v-if="userPermissions.includes('manage:inventory')">
-                      <RouterLink to="/inventory/adjust" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Ajuste y Carga
-                        </Button>
-                      </RouterLink>
-                    </li>
-                  </ul>
-                </AccordionContent>
-              </AccordionItem>
+                  <span
+                    v-if="pendingPurchasesCount > 0"
+                    class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full h-5 min-w-[20px] flex items-center justify-center shadow-sm mr-2"
+                  >
+                    {{ pendingPurchasesCount }}
+                  </span>
+                </div>
+              </AccordionTrigger>
 
-              <!-- <AccordionItem v-if="userPermissions.includes('view:catalog')" value="catalog">
-                <AccordionTrigger class="hover:no-underline">
-                  <div class="flex items-center">
-                    <FolderTree class="h-4 w-4 mr-2" />
-                    <span>Catálogo</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent class="pl-4">
-                  <ul class="space-y-1">
-                    <li>
-                      <RouterLink to="/catalog/products" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Productos
-                        </Button>
-                      </RouterLink>
-                    </li>
-                    <li>
-                      <RouterLink to="/catalog/categories" v-slot="{ href, navigate, isActive }">
-                        <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                          Categorías
-                        </Button>
-                      </RouterLink>
-                    </li>
-                  </ul>
-                </AccordionContent>
-              </AccordionItem> -->
+              <AccordionContent class="pl-4">
+                <ul class="space-y-1">
+
+                  <li v-if="userPermissions.includes('manage:inventory')">
+                    <RouterLink to="/inventory" v-slot="{ href, navigate, isActive }">
+                      <Button
+                          :variant="isActive ? 'secondary' : 'ghost'"
+                          class="w-full h-8 flex items-center justify-between px-2"
+                          @click="navigate"
+                      >
+                        <span>Recepcion</span>
+                        <span
+                          v-if="pendingPurchasesCount > 0"
+                          class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2 h-5 min-w-[20px] flex items-center justify-center shadow-sm"
+                        >
+                          {{ pendingPurchasesCount }}
+                        </span>
+                      </Button>
+                    </RouterLink>
+                  </li>
+
+                  <li v-if="userPermissions.includes('manage:inventory')">
+                    <RouterLink to="/inventory/stock-transfer-report" v-slot="{ href, navigate, isActive }">
+                      <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
+                        Reportes
+                      </Button>
+                    </RouterLink>
+                  </li>
+                  <li v-if="userPermissions.includes('manage:transfers')">
+                    <RouterLink to="/inventory/transfers" v-slot="{ href, navigate, isActive }">
+                      <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
+                        Transferencias
+                      </Button>
+                    </RouterLink>
+                  </li>
+                  <li v-if="userPermissions.includes('view:inventory')">
+                    <RouterLink to="/inventory/stock-report" v-slot="{ href, navigate, isActive }">
+                      <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
+                        Inventario
+                      </Button>
+                    </RouterLink>
+                  </li>
+                  <li v-if="userPermissions.includes('manage:inventory')">
+                    <RouterLink to="/inventory/adjust" v-slot="{ href, navigate, isActive }">
+                      <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
+                        Ajuste y Carga
+                      </Button>
+                    </RouterLink>
+                  </li>
+                </ul>
+              </AccordionContent>
+          </AccordionItem>
+
             <AccordionItem v-if="isAdmin" value="admin-panel">
               <AccordionTrigger class="hover:no-underline">
                 <div class="flex items-center">
@@ -289,7 +317,6 @@ watch(
                 </ul>
               </AccordionContent>
             </AccordionItem>
-
 
           </Accordion>
         </div>
@@ -343,7 +370,7 @@ watch(
 </template>
 
 <style>
-/* Estilos globales (Sin cambios) */
+/* Estilos globales */
 html, body, #app {
   height: 100%;
   overflow: hidden;

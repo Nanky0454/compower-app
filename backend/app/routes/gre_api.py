@@ -404,3 +404,4 @@ def anular_guia(payload, gre_id):
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+

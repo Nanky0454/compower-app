@@ -7,21 +7,24 @@ class ProductReceipt(db.Model):
     __tablename__ = 'product_receipts'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # AQUÍ ESTÁ LA FACTURA QUE PEDISTE
     invoice_number = db.Column(db.String(50), nullable=True)
-
     receipt_date = db.Column(db.DateTime, default=datetime.now)
-    created_by = db.Column(db.String(255), nullable=True)  # ID del usuario (Auth0)
+    created_by = db.Column(db.String(255), nullable=True)
 
-    # Relaciones
-    purchase_order_id = db.Column(db.Integer, db.ForeignKey('purchase_orders.id'), nullable=False)
+    # --- CAMBIO 1: Permitir que sea NULL (nullable=True) ---
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey('purchase_orders.id'), nullable=True)
+
+    # --- CAMBIO 2: Agregar Proveedor directo (Ya que no habrá OC) ---
+    provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=True)
+
     warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False)
 
+    # Relaciones
     purchase_order = db.relationship('PurchaseOrder', backref='receipts')
+    # Agregar relación al proveedor
+    provider = db.relationship('Provider')
     warehouse = db.relationship('Warehouse')
     items = db.relationship('ProductReceiptItem', backref='receipt', cascade="all, delete-orphan")
-
 
 # --- DETALLE (Cada producto recibido) ---
 class ProductReceiptItem(db.Model):
