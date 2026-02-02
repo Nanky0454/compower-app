@@ -199,13 +199,16 @@ async function handleFileUpload(event) {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>ID</TableHead>
             <TableHead>Nombre</TableHead>
             <TableHead>Categoría Padre (Subcategoría de)</TableHead>
             <TableHead>Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
+
           <TableRow v-for="cat in categories" :key="cat.id">
+            <TableCell>{{ cat.id }}</TableCell>
             <TableCell class="font-medium">{{ cat.name }}</TableCell>
             <TableCell>{{ cat.parent_name || '---' }}</TableCell>
             <TableCell class="flex gap-2">

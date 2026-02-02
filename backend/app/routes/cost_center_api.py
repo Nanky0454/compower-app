@@ -4,6 +4,7 @@ from ..models.cost_center import CostCenter # <-- Modelo actualizado
 from ..models.stock_transfer import StockTransfer, StockTransferItem
 from ..models.product_catalog import Product
 from ..services.auth_service import requires_auth
+from ..models.purchase_order import PurchaseOrder, PurchaseOrderItem
 from sqlalchemy import func, cast
 from decimal import Decimal
 
@@ -17,7 +18,7 @@ def get_cost_centers_with_budget(payload):
     try:
         # Paso 1: Query de consumo
         print("1. Calculando consumos...")  # LOG 2
-        consumption_query = db.session.query(
+        consumption_query_st = db.session.query(
             StockTransfer.cost_center_id,
             func.sum(
                 cast(StockTransferItem.quantity, db.Numeric(10, 2)) *
@@ -29,8 +30,21 @@ def get_cost_centers_with_budget(payload):
             .group_by(StockTransfer.cost_center_id) \
             .all()
 
-        consumption_map = {cc_id: total or Decimal(0) for cc_id, total in consumption_query}
-        print(f"   -> Consumos calculados: {len(consumption_map)}")
+        consumption_query_po = db.session.query(
+            PurchaseOrder.cost_center_id,
+            func.sum(
+                cast(PurchaseOrderItem.quantity, db.Numeric(10, 2)) *
+                cast(PurchaseOrderItem.unit_price, db.Numeric(10, 2))
+            )
+        ).join(PurchaseOrderItem, PurchaseOrder.id == PurchaseOrderItem.order_id) \
+            .filter(PurchaseOrder.cost_center_id.isnot(None)) \
+            .group_by(PurchaseOrder.cost_center_id) \
+            .all()
+
+        consumption_map_st = {cc_id: total or Decimal(0) for cc_id, total in consumption_query_st}
+        consumption_map_po = {cc_id: total or Decimal(0) for cc_id, total in consumption_query_po}
+
+        print(f"   -> Consumos calculados: {len(consumption_map_st)} y {len(consumption_map_po)}")
 
         # Paso 2: Obtener Centros
         print("2. Obteniendo lista de CostCenters de la BD...")  # LOG 3
@@ -53,8 +67,9 @@ def get_cost_centers_with_budget(payload):
                 budget_float = float(raw_budget)
 
                 # Consumo
-                consumed_decimal = consumption_map.get(cc.id, Decimal(0))
-                consumed_float = float(consumed_decimal)
+                consumed_decimal_st = consumption_map_st.get(cc.id, Decimal(0))
+                consumed_decimal_po = consumption_map_po.get(cc.id, Decimal(0))
+                consumed_float = float(consumed_decimal_st) + float(consumed_decimal_po)
 
                 cc_dict['budget'] = budget_float  # Aseguramos que vaya al front
                 cc_dict['consumed_budget'] = consumed_float
