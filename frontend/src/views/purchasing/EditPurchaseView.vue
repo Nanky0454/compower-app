@@ -34,7 +34,9 @@ const coordinators = ref([
   { id: '2', name: 'GERSON CALLAÑAUPA' },
   { id: '3', name: 'MARIA AYALA' },
   { id: '4', name: 'BRAULIO CASTILLO' },
-  { id: '5', name: 'ROSARIO CUEVAS' }
+  { id: '5', name: 'ROSARIO CUEVAS' },
+  { id: '6', name: 'GIANCARLO ZEGARRA' },
+  { id: '7', name: 'PIERO NANQUEN' }
 ])
 
 // --- VALORES POR DEFECTO ---
@@ -238,12 +240,26 @@ async function handleProviderSearch() {
   searchTimeout = setTimeout(async () => {
     try {
       const token = await getAccessTokenSilently()
-      const res = await fetch(`${FLASK_API_URL}/purchases/providers?q=${q}`, {
-         headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (res.ok) {
-         providerResults.value = await res.json()
-         showProviderResults.value = true
+      if (/^\d{11}$/.test(q)) {
+         const localRes = await fetch(`${FLASK_API_URL}/purchases/providers?q=${q}`, { headers: { 'Authorization': `Bearer ${token}` } })
+         const localData = await localRes.json()
+         if (localData.length > 0) {
+            providerResults.value = localData
+            showProviderResults.value = true
+         } else {
+            const sunatRes = await fetch(`${FLASK_API_URL}/purchases/lookup-provider/${q}`, { headers: { 'Authorization': `Bearer ${token}` } })
+            if (sunatRes.ok) {
+                const sunatData = await sunatRes.json()
+                providerResults.value = [sunatData]
+                showProviderResults.value = true
+            } else { providerResults.value = [] }
+         }
+      } else {
+         const res = await fetch(`${FLASK_API_URL}/purchases/providers?q=${q}`, { headers: { 'Authorization': `Bearer ${token}` } })
+         if (res.ok) {
+            providerResults.value = await res.json()
+            showProviderResults.value = true
+         }
       }
     } catch (e) { console.error(e) }
     finally { isSearchingProvider.value = false }
@@ -455,6 +471,9 @@ async function handleUpdate() {
                                         <SelectItem value="MT">MT</SelectItem>
                                         <SelectItem value="KG">KG</SelectItem>
                                         <SelectItem value="M2">M2</SelectItem>
+                                        <SelectItem value="M3">M3</SelectItem>
+                                        <SelectItem value="JGO">JGO</SelectItem>
+                                        <SelectItem value="PQT">PQT</SelectItem>
                                       </SelectContent>
                                     </Select>
                                  </TableCell>

@@ -31,7 +31,9 @@ const coordinators = ref([
   { id: '2', name: 'GERSON CALLAÑAUPA' },
   { id: '3', name: 'MARIA AYALA' },
   { id: '4', name: 'BRAULIO CASTILLO' },
-  { id: '5', name: 'ROSARIO CUEVAS' }
+  { id: '5', name: 'ROSARIO CUEVAS' },
+  { id: '6', name: 'GIANCARLO ZEGARRA' },
+  { id: '7', name: 'PIERO NANQUEN' }
 ])
 
 const getToday = () => {
@@ -756,6 +758,9 @@ async function handleAnnul(order) {
                             <SelectItem value="MT">MT</SelectItem>
                             <SelectItem value="KG">KG</SelectItem>
                             <SelectItem value="M2">M2</SelectItem>
+                            <SelectItem value="M3">M3</SelectItem>
+                            <SelectItem value="JGO">JGO</SelectItem>
+                            <SelectItem value="PQT">PQT</SelectItem>
                           </SelectContent>
                         </Select>
                      </TableCell>
