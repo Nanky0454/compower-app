@@ -559,7 +559,11 @@ async function handleUpdate() {
                     </Card>
                 </div>
             </div>
+          <div>
+            <Card>
 
+            </Card>
+          </div>
             <div class="space-y-6">
                 <Card>
                     <CardHeader class="pb-3 border-b bg-gray-50/50 py-3"><CardTitle class="text-sm font-bold uppercase text-gray-600">Condiciones</CardTitle></CardHeader>

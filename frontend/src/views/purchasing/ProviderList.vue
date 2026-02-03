@@ -79,9 +79,9 @@ onMounted(() => {
         <TableHeader>
           <TableRow>
             <TableHead class="w-[120px]">ID</TableHead>
-            <TableHead>Razon Social</TableHead>
+            <TableHead class>Razon Social</TableHead>
             <TableHead class="w-[120px]">RUC</TableHead>
-            <TableHead class="text-right">Dirección</TableHead>
+            <TableHead >Dirección</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

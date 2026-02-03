@@ -127,7 +127,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: 2.8cm;
+            height: 9cm;
             padding-top: 2px;
             background-color: white;
         }
@@ -244,10 +244,10 @@
                         <tr>
                             <td class="w-item">{{ group_idx }}.{{ loop.index }}</td>
                             <td class="w-desc">{{ item['invoice_detail_text'] }}</td>
-                            <td class="w-und">{{ item['um'] }}</td>
-                            <td class="w-num">{{ "%.2f"|format(item['quantity']|float) }}</td>
-                            <td class="w-num">{{ "%.2f"|format(item['unit_price']|float) }}</td>
-                            <td class="w-money">{{ "%.2f"|format(item['quantity']|float * item['unit_price']|float) }}</td>
+                            <td class="w-und">{{ item['um'] }}</td><td class="w-num">{{ "%.2f"|format(item['quantity']|float) }}</td>                            {% if item['unit_price'] == 0 %} <td></td>{% endif %}
+                            {% if item['unit_price'] != 0 %} <td class="w-num">{{ "%.2f"|format(item['unit_price']|float) }}</td> {% endif %}
+                            {% if item['unit_price'] == 0 %} <td></td>{% endif %}
+                            {% if item['unit_price'] != 0 %} <td class="w-money">{{ "%.2f"|format(item['quantity']|float * item['unit_price']|float) }}</td>{% endif %}
                             <td class="w-money"></td>
                         </tr>
                     {% endfor %}
@@ -273,7 +273,8 @@
                     <td style="width: 55%; text-align: justify;">{{ item.descripcion }}</td>
                     <td class="w-und">{{ item.unidad }}</td>
                     <td class="w-num">{{ "%.2f"|format(item.cantidad) }}</td>
-                    <td class="w-num">{{ "%.2f"|format(item.pu) }}</td>
+                    {% if item.pu == 0 %}<td></td>{% endif %}
+                    {% if item.pu != 0 %}<td class="w-num">{{ "%.2f"|format(item.pu) }}</td>{% endif %}
                     <td class="w-money">{{ "%.2f"|format(item.total) }}</td>
                 </tr>
                 {% endfor %}
@@ -299,59 +300,61 @@
         </tr>
     </table>
 
-    <div class="notes-section">
-        {% if alcance %}
-        <div class="section-box">
-            <div class="section-title">INCLUYE:</div>
-            {% if alcance is mapping and alcance['includes'] %}
-                <ul style="margin: 0 0 0 10px; padding: 0;">
-                {% for inc in alcance['includes'] %}
-                    <li>{{ inc['text'] }}</li>
-                {% endfor %}
-                </ul>
-            {% else %}
-                {% if alcance is string %}
-                    <div style="white-space: pre-wrap;">{{ alcance }}</div>
-                {% endif %}
-            {% endif %}
-        </div>
-        {% endif %}
 
-        <div class="section-box" style="border: none; padding-left: 0;">
-            <div class="section-title">CONDICIONES COMERCIALES:</div>
-            <ul class="conditions-list">
-                {% for cond in condiciones %}
-                    <li>
-                        {% if ':' in cond %}
-                            {% set parts = cond.split(':', 1) %}
-                            <strong>{{ parts[0] }}:</strong> {{ parts[1] }}
-                        {% else %}
-                            {{ cond }}
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
-
-        {% if notas_legales %}
-        <div style="margin-top: 5px;">
-            <ul class="conditions-list" style="list-style-type: none; margin: 0; padding: 0;">
-                {% for nota in notas_legales %}
-                    <li>
-                        {% if ':' in nota %}
-                            {% set parts = nota.split(':', 1) %}
-                            {{ parts[0] }}: {{ parts[1] }}
-                        {% else %}
-                            {{ nota }}
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endif %}
-    </div>
 
     <div class="fixed-footer">
+            <div class="notes-section">
+            {% if alcance %}
+            <div class="section-box">
+                <div class="section-title">INCLUYE:</div>
+                {% if alcance is mapping and alcance['includes'] %}
+                    <ul style="margin: 0 0 0 10px; padding: 0;">
+                    {% for inc in alcance['includes'] %}
+                        <li>{{ inc['text'] }}</li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    {% if alcance is string %}
+                        <div style="white-space: pre-wrap;">{{ alcance }}</div>
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="section-box" style="border: none; padding-left: 0;">
+                <div class="section-title">CONDICIONES COMERCIALES:</div>
+                <ul class="conditions-list">
+                    {% for cond in condiciones %}
+                        <li>
+                            {% if ':' in cond %}
+                                {% set parts = cond.split(':', 1) %}
+                                <strong>{{ parts[0] }}:</strong> {{ parts[1] }}
+                            {% else %}
+                                {{ cond }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            {% if notas_legales %}
+            <div style="margin-top: 5px;">
+                <ul class="conditions-list" style="list-style-type: none; margin: 0; padding: 0;">
+                    {% for nota in notas_legales %}
+                        <li>
+                            {% if ':' in nota %}
+                                {% set parts = nota.split(':', 1) %}
+                                {{ parts[0] }}: {{ parts[1] }}
+                            {% else %}
+                                {{ nota }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        <br>
         <table class="signatures-table">
             <tr>
                 <td class="sig-cell">

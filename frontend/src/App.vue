@@ -277,13 +277,6 @@ watch(
                       </Button>
                     </RouterLink>
                   </li>
-                  <li v-if="userPermissions.includes('manage:inventory')">
-                    <RouterLink to="/inventory/providers" v-slot="{ href, navigate, isActive }">
-                      <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                        Lista de proveedores
-                      </Button>
-                    </RouterLink>
-                  </li>
                 </ul>
               </AccordionContent>
           </AccordionItem>
