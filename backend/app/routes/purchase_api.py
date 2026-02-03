@@ -66,7 +66,7 @@ def get_purchase_catalogs(payload):
     return jsonify({
         'document_types': [d.to_dict() for d in DocumentType.query.all()],
         'statuses': [s.to_dict() for s in OrderStatus.query.all()],
-        'cost_centers': [cc.to_dict() for cc in CostCenter.query.filter_by(status='Activo').all()]
+        'cost_centers': [cc.to_dict() for cc in CostCenter.query.filter_by(status='Activo').order_by(CostCenter.code.desc()).all()]
     })
 
 
