@@ -543,8 +543,8 @@ async function handleAnnul(order) {
               <TableRow v-for="order in purchaseOrders" :key="order.id" class="hover:bg-gray-50/50">
                 <TableCell class="font-mono font-medium">{{ order.codigo }}</TableCell>
                 <TableCell class="text-xs text-gray-500">{{ formatDate(order.fecha_emision) }}</TableCell>
-                <TableCell>
-                  <div class="text-sm font-medium">{{ order.provider_name }}</div>
+                <TableCell class="max-w-xs">
+                  <div class="text-sm font-medium whitespace-normal break-words">{{ order.provider_name }}</div>
                   <div class="text-xs text-gray-400">RUC: {{ order.ruc }}</div>
                 </TableCell>
                 <TableCell>
@@ -753,6 +753,7 @@ async function handleAnnul(order) {
                         <Select v-model="item.um">
                           <SelectTrigger class="h-8"><SelectValue /></SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="UND">UND</SelectItem>
                             <SelectItem value="PZA">PZA</SelectItem>
                             <SelectItem value="GLB">GLB</SelectItem>
                             <SelectItem value="MT">MT</SelectItem>

@@ -77,5 +77,6 @@ onMounted(async () => {
     <h1 class="text-2xl font-bold mb-4">
      Recepciones pasadas
     </h1>
+
   </div>
 </template>

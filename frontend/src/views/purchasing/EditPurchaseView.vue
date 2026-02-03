@@ -466,6 +466,7 @@ async function handleUpdate() {
                                     <Select v-model="item.um">
                                       <SelectTrigger class="h-8"><SelectValue /></SelectTrigger>
                                       <SelectContent>
+                                        <SelectItem value="UND">UND</SelectItem>
                                         <SelectItem value="PZA">PZA</SelectItem>
                                         <SelectItem value="GLB">GLB</SelectItem>
                                         <SelectItem value="MT">MT</SelectItem>

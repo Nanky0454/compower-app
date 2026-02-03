@@ -95,13 +95,13 @@ onMounted(() => {
             <TableCell class="font-bold font-mono text-blue-700 bg-blue-50/50">
               {{ item.id }}
             </TableCell>
-            <TableCell>{{ item.name }}</TableCell>
+            <TableCell class="max-w-xs whitespace-normal break-words">{{ item.name }}</TableCell>
             <TableCell>
                 <span class="px-2 py-1 rounded bg-gray-100 text-xs font-semibold text-gray-700">
                     {{ item.ruc }}
                 </span>
             </TableCell>
-            <TableCell>
+            <TableCell class="max-w-xs whitespace-normal break-words">
                {{ item.address }}
             </TableCell>
           </TableRow>

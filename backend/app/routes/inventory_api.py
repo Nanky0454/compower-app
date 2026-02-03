@@ -612,3 +612,5 @@ def direct_receive_inventory(payload):
         import traceback
         traceback.print_exc()
         return jsonify(error=f"Error al procesar ingreso: {str(e)}"), 500
+
+
