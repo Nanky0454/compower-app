@@ -658,7 +658,7 @@ async function handleAnnul(order) {
                 <CardTitle class="text-sm font-bold uppercase text-gray-600">1. Datos Generales</CardTitle>
                 <div class="flex items-center gap-2">
                     <div class="relative">
-                        <Input type="date" v-model="formData.issue_date" class="h-8 w-32 text-xs"/>
+                        <Input type="date" v-model="formData.issue_date" class="h-8 w-32 text-xs" disabled/>
                         <span class="absolute -bottom-4 left-0 w-full text-center text-[9px] text-gray-400" >EMISIÓN</span>
                     </div>
 
