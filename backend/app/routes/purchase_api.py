@@ -78,7 +78,7 @@ def get_purchases(payload):
             joinedload(PurchaseOrder.provider),
             joinedload(PurchaseOrder.status),
             joinedload(PurchaseOrder.cost_center)
-        ).order_by(PurchaseOrder.id.desc()).all()
+        ).order_by(PurchaseOrder.document_number.desc()).all()
         return jsonify([o.to_dict() for o in orders])
     except Exception as e:
         return jsonify(error=str(e)), 500
