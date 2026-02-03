@@ -656,7 +656,7 @@ async function handleAnnul(order) {
                 <CardTitle class="text-sm font-bold uppercase text-gray-600">1. Datos Generales</CardTitle>
                 <div class="flex items-center gap-2">
                     <div class="relative">
-                        <Input type="date" v-model="formData.issue_date" class="h-8 w-32 text-xs" disabled/>
+                        <Input type="date" v-model="formData.issue_date" class="h-8 w-32 text-xs"/>
                         <span class="absolute -bottom-4 left-0 w-full text-center text-[9px] text-gray-400" >EMISIÓN</span>
                     </div>
 
@@ -844,6 +844,9 @@ async function handleAnnul(order) {
                 <Layers class="w-4 h-4 mr-2"/> Agregar Nuevo Grupo de Trabajo
              </Button>
 
+
+
+          </div>
              <Card class="border-t-4 border-t-gray-400 mt-6 shadow-sm">
                 <CardHeader class="pb-2 pt-3 px-4 bg-gray-100 flex flex-row justify-between items-center">
                    <CardTitle class="text-xs font-bold uppercase text-gray-700 flex items-center gap-2">
@@ -866,9 +869,6 @@ async function handleAnnul(order) {
                    </div>
                 </CardContent>
              </Card>
-
-          </div>
-
         </div>
 
         <div class="space-y-6">

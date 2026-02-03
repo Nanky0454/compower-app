@@ -27,7 +27,7 @@ import WarehouseView from '@/views/inventory/WarehouseView.vue'
 import InventoryAdjustmentView from '@/views/inventory/InventoryAdjustmentView.vue'
 import TreasuryConfigView from "@/views/admin/TreasuryConfigView.vue";
 import RegisterInventoryView from "@/views/inventory/RegisterInventoryView.vue";
-
+import ProviderListView from "@/views/purchasing/ProviderList.vue"
 
 const routes = [
   {
@@ -123,6 +123,12 @@ const routes = [
     name: 'InventoryReceive',
     component: InventoryReceiveView,
     meta: { title: 'Recepcionar Orden' }
+  },
+  {
+    path: '/purchases/providers',
+    name: 'ProviderList',
+    component: ProviderListView,
+    meta: { title: 'Lista de Proveedores' }
   },
   {
     path: '/inventory/stock-report',

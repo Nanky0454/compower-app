@@ -230,6 +230,16 @@ def search_providers(payload):
     providers = query.order_by(Provider.name).limit(20).all()
     return jsonify([p.to_dict() for p in providers])
 
+@purchase_api.route('/providerslist', methods=['GET'])
+@requires_auth(required_permission='create:purchases')
+def get_providers(payload):
+    """Devuelve una lista de todas los proveedores."""
+    try:
+        providers = Provider.query.order_by(Provider.name).all()
+        return jsonify([p.to_dict() for p in providers])
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
 
 @purchase_api.route('/next-correlative/<string:series>', methods=['GET'])
 @requires_auth(required_permission='create:purchases')

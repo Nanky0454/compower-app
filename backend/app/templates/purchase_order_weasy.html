@@ -49,8 +49,8 @@
             padding: 2px 3px;
             vertical-align: middle;
         }
-        .bg-gray { background-color: #e0e0e0; font-weight: bold; width: 70px; }
-        .bg-gray-sm { background-color: #e0e0e0; font-weight: bold; width: 50px; }
+        .bg-blue-50 { background-color: #e0e0e0; font-weight: bold; width: 70px; }
+        .bg-blue-50-sm { background-color: #e0e0e0; font-weight: bold; width: 50px; }
 
         /* --- TABLA DE ITEMS --- */
         .items-table {
@@ -178,37 +178,37 @@
 
     <table class="grid-table">
         <tr>
-            <td class="bg-gray">Señores:</td>
+            <td class="bg-blue-50">Señores:</td>
             <td colspan="3">{{ proveedor_nombre }}</td>
-            <td class="bg-gray-sm">Referencia:</td>
+            <td class="bg-blue-50-sm">Referencia:</td>
             <td>{{ referencia }}</td>
         </tr>
         <tr>
-            <td class="bg-gray">Dirección:</td>
+            <td class="bg-blue-50">Dirección:</td>
             <td colspan="3">{{ proveedor_direccion }}</td>
-            <td class="bg-gray-sm">Atención:</td>
+            <td class="bg-blue-50-sm">Atención:</td>
             <td>{{ atencion }}</td>
         </tr>
         <tr>
-            <td class="bg-gray">RUC:</td>
+            <td class="bg-blue-50">RUC:</td>
             <td>{{ proveedor_ruc }}</td>
-            <td class="bg-gray">C. Costo:</td>
+            <td class="bg-blue-50">C. Costo:</td>
             <td>{{ cc_codigo }}</td>
-            <td class="bg-gray-sm">Tel/Email:</td>
+            <td class="bg-blue-50-sm">Tel/Email:</td>
             <td style="font-size: 6pt;">{{ contacto }}</td>
         </tr>
         <tr>
-            <td class="bg-gray">Site / Lugar:</td>
+            <td class="bg-blue-50">Site / Lugar:</td>
             <td><strong>{{ site }}</strong></td>
 
-            <td class="bg-gray-sm">Tipo:</td>
+            <td class="bg-blue-50-sm">Tipo:</td>
 
             <td style="vertical-align: middle; padding: 1px;">
                 {% if tipo == 'OC' %}<span style="font-size: 6pt;">Compra</span>{% endif %}
                 {% if tipo == 'OS' %}<span style="font-size: 6pt;">Servicio</span>{% endif %}
             </td>
 
-            <td class="bg-gray-sm">Fecha:</td>
+            <td class="bg-blue-50-sm">Fecha:</td>
             <td>{{ fecha_emision }}</td>
         </tr>
     </table>
