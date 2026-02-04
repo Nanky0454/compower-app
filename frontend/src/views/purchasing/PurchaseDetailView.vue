@@ -88,6 +88,9 @@ function goBack() {
       <h1 class="text-2xl font-bold text-gray-900" v-if="order">
         {{ order.tipo_doc_nombre }}: {{ order.codigo }}
       </h1>
+      <p class="text-sm text-gray-500" v-if="order && order.document_class">
+        Tipo Tributario: <span class="font-semibold">{{ order.document_class }}</span>
+      </p>
       <span v-if="isLoading">Cargando...</span>
     </div>
 

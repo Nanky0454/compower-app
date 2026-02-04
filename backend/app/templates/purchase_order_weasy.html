@@ -323,12 +323,18 @@
             <td class="lbl">IGV (18%)</td>
             <td>{{ simbolo }} {{ "%.2f"|format(igv) }}</td>
         </tr>
-        {% endif %}
         <tr>
             <td style="border:none;"></td>
             <td class="lbl">TOTAL</td>
             <td style="font-weight:bold;">{{ simbolo }} {{ "%.2f"|format(total) }}</td>
         </tr>
+        {% else %}
+        <tr>
+            <td style="border:none; width: 76%;"></td>
+            <td class="lbl" style="width: 12%;">TOTAL</td>
+            <td style="font-weight:bold; width: 12%;">{{ simbolo }} {{ "%.2f"|format(total) }}</td>
+        </tr>
+        {% endif %}
     </table>
 
 
