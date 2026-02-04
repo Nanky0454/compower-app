@@ -28,6 +28,7 @@ import InventoryAdjustmentView from '@/views/inventory/InventoryAdjustmentView.v
 import TreasuryConfigView from "@/views/admin/TreasuryConfigView.vue";
 import RegisterInventoryView from "@/views/inventory/RegisterInventoryView.vue";
 import ProviderListView from "@/views/purchasing/ProviderList.vue"
+import CostCenterDetail from "@/views/cost_centers/CostCenterDetail.vue";
 
 const routes = [
   {
@@ -49,6 +50,12 @@ const routes = [
     name: 'cost-centers',
     component: CostCentersView,
     meta: { title: 'Centros de Costos' }
+  },
+    {
+    path: '/cost-centers/:id',
+    name: 'cost-centers-detail',
+    component: CostCenterDetail,
+    meta: { title: 'Detalle de centro de costo' }
   },
   {
     path: '/projects/sites',

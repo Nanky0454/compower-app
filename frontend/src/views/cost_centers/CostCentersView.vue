@@ -12,10 +12,11 @@ import {
 import { Input } from '@/components/ui/input/index.js'
 import { Label } from '@/components/ui/label/index.js'
 import { Badge } from '@/components/ui/badge/index.js'
-import { Pencil } from 'lucide-vue-next' // <-- Icono para editar
+import { Pencil, Eye } from 'lucide-vue-next' // <-- Icono para editar
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select/index.js' // <-- Nuevo componente
+} from '@/components/ui/select/index.js'
+import router from "@/router/index.js"; // <-- Nuevo componente
 
 // Hooks
 const { getAccessTokenSilently } = useAuth0()
@@ -85,6 +86,9 @@ function openEditModal(cc) {
   isDialogOpen.value = true
 }
 
+function openDetail(id){
+  router.push({ name: 'CostCenterDetail', params: { id } })
+}
 // --- 3. Manejar el envío del formulario (Crear o Editar) ---
 async function handleFormSubmit() {
   let url = `${import.meta.env.VITE_API_URL}/api/cost-centers`
@@ -166,6 +170,9 @@ async function handleFormSubmit() {
             <TableCell>
               <Button variant="outline" size="icon" @click="openEditModal(cc)">
                 <Pencil class="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" @click="openDetail(cc.id)">
+                <Eye class="h-4 w-4"/>
               </Button>
             </TableCell>
           </TableRow>
