@@ -193,21 +193,22 @@
             <td class="bg-blue-50">RUC:</td>
             <td>{{ proveedor_ruc }}</td>
             <td class="bg-blue-50">C. Costo:</td>
-            <td>{{ cc_codigo }}</td>
-            <td class="bg-blue-50-sm">Tel/Email:</td>
-            <td style="font-size: 6pt;">{{ contacto }}</td>
+            <td colspan="3">{{ cc_codigo }}</td>
+        </tr>
+        <tr>
+            <td class="bg-blue-50">Tipo:</td>
+            <td>{{ document_class }}</td>
+            <td class="bg-blue-50">Tel/Email:</td>
+            <td colspan="3" style="font-size: 6pt;">{{ contacto }}</td>
         </tr>
         <tr>
             <td class="bg-blue-50">Site / Lugar:</td>
             <td><strong>{{ site }}</strong></td>
-
-            <td class="bg-blue-50-sm">Tipo:</td>
-
+            <td class="bg-blue-50-sm">Tipo Orden:</td>
             <td style="vertical-align: middle; padding: 1px;">
-                {% if tipo == 'OC' %}<span style="font-size: 6pt;">Compra</span>{% endif %}
-                {% if tipo == 'OS' %}<span style="font-size: 6pt;">Servicio</span>{% endif %}
+                {% if tipo == 'OC' %}<span>Compra</span>{% endif %}
+                {% if tipo == 'OS' %}<span>Servicio</span>{% endif %}
             </td>
-
             <td class="bg-blue-50-sm">Fecha:</td>
             <td>{{ fecha_emision }}</td>
         </tr>
@@ -312,29 +313,32 @@
     {% endif %}
 
     <table class="totals-table">
-        {% if document_class == 'Factura' %}
         <tr>
             <td style="border:none;"></td>
             <td class="lbl" style="width: 12%;">Sub Total</td>
             <td style="width: 12%;">{{ simbolo }} {{ "%.2f"|format(subtotal) }}</td>
         </tr>
+
+        {% if document_class == 'Factura' %}
         <tr>
             <td style="border:none;"></td>
             <td class="lbl">IGV (18%)</td>
             <td>{{ simbolo }} {{ "%.2f"|format(igv) }}</td>
         </tr>
+
+        {% else %}
         <tr>
             <td style="border:none;"></td>
-            <td class="lbl">TOTAL</td>
-            <td style="font-weight:bold;">{{ simbolo }} {{ "%.2f"|format(total) }}</td>
+            <td class="lbl">IGV (0%)</td>
+            <td>{{ simbolo }} 0.00</td>
         </tr>
-        {% else %}
+        {% endif %}
+
         <tr>
             <td style="border:none; width: 76%;"></td>
             <td class="lbl" style="width: 12%;">TOTAL</td>
             <td style="font-weight:bold; width: 12%;">{{ simbolo }} {{ "%.2f"|format(total) }}</td>
         </tr>
-        {% endif %}
     </table>
 
 
