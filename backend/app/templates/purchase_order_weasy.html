@@ -214,6 +214,23 @@
     </table>
 
     {% if alcance is mapping and alcance['groups'] %}
+        {% set ns_counter = namespace(total_items=0) %}
+        {% for group in alcance['groups'] %}
+            {% set ns_counter.total_items = ns_counter.total_items + group['items']|length %}
+        {% endfor %}
+
+        {% if ns_counter.total_items < 10 %}
+            <style>
+                .items-table, .items-table th, .group-row td {
+                    font-size: 7.5pt;
+                }
+                .notes-section, .notes-section li, .notes-section div {
+                    font-size: 7pt;
+                }
+                .sig-name { font-size: 6.5pt; }
+                .sig-role { font-size: 6pt; }
+            </style>
+        {% endif %}
         <table class="items-table">
             <thead>
                 <tr>
@@ -255,6 +272,18 @@
             </tbody>
         </table>
     {% else %}
+        {% if items and items|length < 10 %}
+            <style>
+                .items-table, .items-table th {
+                    font-size: 7.5pt;
+                }
+                .notes-section, .notes-section li, .notes-section div {
+                    font-size: 7pt;
+                }
+                .sig-name { font-size: 6.5pt; }
+                .sig-role { font-size: 6pt; }
+            </style>
+        {% endif %}
         <table class="items-table">
             <thead>
                 <tr>
