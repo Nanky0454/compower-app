@@ -103,6 +103,7 @@ def create_purchase(payload):
                 pass
 
         new_po = PurchaseOrder(
+            document_class=data.get('document_class', 'Factura'),
             document_number=data.get('document_number', 'S/N'),
             created_at=created_at_val,
             owner_id=payload['sub'],
@@ -168,6 +169,7 @@ def update_purchase(order_id, payload):
         if order.status.name in ['Recibida', 'Anulada']:
             return jsonify(error="No se puede editar orden cerrada."), 400
 
+        if 'document_class' in data: order.document_class = data['document_class']
         if 'document_number' in data: order.document_number = data['document_number']
         if 'status_id' in data: order.status_id = data['status_id']
         if 'cost_center_id' in data: order.cost_center_id = data.get('cost_center_id')
@@ -366,7 +368,9 @@ def download_purchase_pdf(order_id, payload):
             'grupo': item.group_name
         })
 
-    igv = total_neto * 0.18
+    igv = 0
+    if order.document_class == 'Factura':
+        igv = total_neto * 0.18
     total_gen = total_neto + igv
 
     alcance_data = order.scope
@@ -377,6 +381,7 @@ def download_purchase_pdf(order_id, payload):
         pass
 
     context = {
+        'document_class': order.document_class,
         'logo_b64': logo_b64,
         'titulo_doc': "ORDEN DE SERVICIO" if order.order_type == 'OS' else "ORDEN DE COMPRA",
         'tipo': order.order_type,

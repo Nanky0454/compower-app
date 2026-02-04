@@ -66,6 +66,7 @@ class PurchaseOrder(db.Model):
     __tablename__ = 'purchase_orders'
 
     id = db.Column(db.Integer, primary_key=True)
+    document_class = db.Column(db.String(50), nullable=False, default='Factura', server_default='Factura')
     document_number = db.Column(db.String(50), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
     order_type = db.Column(db.String(5), nullable=False, default='OC')
@@ -125,6 +126,7 @@ class PurchaseOrder(db.Model):
 
         return {
             'id': self.id,
+            'document_class': self.document_class,
             'codigo': self.document_number,
             'order_type': self.order_type,
             'tipo_doc_nombre': self.document_type.name if self.document_type else 'N/A',

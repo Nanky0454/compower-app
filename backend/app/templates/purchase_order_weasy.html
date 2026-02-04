@@ -312,6 +312,7 @@
     {% endif %}
 
     <table class="totals-table">
+        {% if document_class == 'Factura' %}
         <tr>
             <td style="border:none;"></td>
             <td class="lbl" style="width: 12%;">Sub Total</td>
@@ -322,6 +323,7 @@
             <td class="lbl">IGV (18%)</td>
             <td>{{ simbolo }} {{ "%.2f"|format(igv) }}</td>
         </tr>
+        {% endif %}
         <tr>
             <td style="border:none;"></td>
             <td class="lbl">TOTAL</td>

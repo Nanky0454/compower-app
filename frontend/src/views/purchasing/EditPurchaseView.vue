@@ -55,6 +55,7 @@ const DEFAULT_CONDITIONS = [
 
 // Formulario
 const formData = reactive({
+  document_class: 'Factura',
   document_number: '',
   order_type: 'OC',
   status_id: null,
@@ -122,7 +123,10 @@ const subtotal = computed(() => {
   }
 })
 
-const igv = computed(() => subtotal.value * 0.18)
+const igv = computed(() => {
+  if (formData.document_class === 'Recibo por Honorarios') return 0
+  return subtotal.value * 0.18
+})
 const total = computed(() => subtotal.value + igv.value)
 
 // --- CICLO DE VIDA ---
@@ -152,6 +156,7 @@ async function loadOrderData() {
     const data = await res.json()
 
     // Datos Básicos
+    formData.document_class = data.document_class || 'Factura'
     formData.document_number = data.codigo
     formData.order_type = data.order_type || 'OC'
 
@@ -314,6 +319,7 @@ async function handleUpdate() {
     const finalConditions = [formData.penalty, ...formData.commercial_conditions].filter(c => c && c.trim() !== '')
 
     const payload = {
+      document_class: formData.document_class,
       document_number: formData.document_number,
       order_type: formData.order_type,
       status_id: formData.status_id, // Enviamos el mismo estado que tenía
@@ -559,19 +565,29 @@ async function handleUpdate() {
                     </Card>
                 </div>
             </div>
-          <div>
-            <Card>
 
-            </Card>
-          </div>
             <div class="space-y-6">
                 <Card>
                     <CardHeader class="pb-3 border-b bg-gray-50/50 py-3"><CardTitle class="text-sm font-bold uppercase text-gray-600">Condiciones</CardTitle></CardHeader>
                     <CardContent class="pt-4 space-y-4">
 
+                        <div>
+                           <Label>Tipo de Documento (Tributario)</Label>
+                           <Select v-model="formData.document_class">
+                             <SelectTrigger><SelectValue /></SelectTrigger>
+                             <SelectContent>
+                               <SelectItem value="Factura">Factura (afecto a IGV)</SelectItem>
+                               <SelectItem value="Recibo por Honorarios">Recibo por Honorarios (no afecto)</SelectItem>
+                             </SelectContent>
+                           </Select>
+                        </div>
+
                         <div class="bg-gray-50 p-4 rounded border flex flex-col space-y-2 mb-4">
                             <div class="flex justify-between text-sm"><span class="text-gray-600">Subtotal:</span><span class="font-medium">{{ formData.currency }} {{ subtotal.toFixed(2) }}</span></div>
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">IGV (18%):</span><span class="font-medium">{{ formData.currency }} {{ igv.toFixed(2) }}</span></div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">IGV ({{ formData.document_class === 'Factura' ? '18%' : '0%' }}):</span>
+                                <span class="font-medium">{{ formData.currency }} {{ igv.toFixed(2) }}</span>
+                            </div>
                             <div class="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200"><span>Total:</span><span>{{ formData.currency }} {{ total.toFixed(2) }}</span></div>
                         </div>
 

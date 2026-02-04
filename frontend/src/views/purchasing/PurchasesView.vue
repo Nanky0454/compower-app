@@ -121,6 +121,7 @@ const isFetchingCorrelative = ref(false)
 const selectedType = ref('OC')
 
 const formData = reactive({
+  document_class: 'Factura',
   provider_id: null,
   provider_search: '',
   provider_data: null,
@@ -193,7 +194,10 @@ const subtotal = computed(() => {
   }
 })
 
-const igv = computed(() => subtotal.value * 0.18)
+const igv = computed(() => {
+  if (formData.document_class === 'Recibo por Honorarios') return 0
+  return subtotal.value * 0.18
+})
 const total = computed(() => subtotal.value + igv.value)
 
 // --- CICLO DE VIDA ---
@@ -404,6 +408,7 @@ async function handleSubmit() {
     const conditionsJson = JSON.stringify(finalConditions)
 
     const payload = {
+      document_class: formData.document_class,
       document_number: formattedCorrelative.value,
       order_type: selectedType.value,
       provider_id: formData.provider_id,
@@ -884,9 +889,23 @@ async function handleAnnul(order) {
             </CardHeader>
             <CardContent class="pt-4 space-y-4">
 
+               <div>
+                  <Label>Tipo de Documento (Tributario)</Label>
+                  <Select v-model="formData.document_class">
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Factura">Factura (afecto a IGV)</SelectItem>
+                      <SelectItem value="Recibo por Honorarios">Recibo por Honorarios (no afecto)</SelectItem>
+                    </SelectContent>
+                  </Select>
+               </div>
+
                <div class="bg-gray-50 p-4 rounded border flex flex-col space-y-2 mb-4">
                   <div class="flex justify-between text-sm"><span class="text-gray-600">Subtotal:</span><span class="font-medium">{{ formData.currency }} {{ subtotal.toFixed(2) }}</span></div>
-                  <div class="flex justify-between text-sm"><span class="text-gray-600">IGV (18%):</span><span class="font-medium">{{ formData.currency }} {{ igv.toFixed(2) }}</span></div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">IGV ({{ formData.document_class === 'Factura' ? '18%' : '0%' }}):</span>
+                    <span class="font-medium">{{ formData.currency }} {{ igv.toFixed(2) }}</span>
+                  </div>
                   <div class="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200"><span>Total:</span><span>{{ formData.currency }} {{ total.toFixed(2) }}</span></div>
                </div>
 
