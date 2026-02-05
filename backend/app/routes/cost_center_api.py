@@ -97,19 +97,9 @@ def get_cost_centers_with_budget(payload):
 # --- RUTA 1: Obtener todos ---
 @cost_center_api.route('/', strict_slashes=False)
 @requires_auth(required_permission='view:cost_centers') # <-- Permiso actualizado
-def get_cost_centers(payload):
-    try:
-        cost_centers = CostCenter.query.order_by(CostCenter.code).all()
-        return jsonify([cc.to_dict() for cc in cost_centers])
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-# --- RUTA 1: Obtener todos ---
-@cost_center_api.route('/', strict_slashes=False)
-@requires_auth(required_permission='view:cost_centers') # <-- Permiso actualizado
 def get_cost_centers_active(payload):
     try:
-        cost_centers = CostCenter.query.filter_by(status='Activo').order_by(CostCenter.code).all()
+        cost_centers = CostCenter.query.order_by(CostCenter.code).filter_by(status='Activo').all()
         return jsonify([cc.to_dict() for cc in cost_centers])
     except Exception as e:
         return jsonify(error=str(e)), 500
@@ -176,4 +166,63 @@ def update_cost_center(cc_id, payload):
 
     except Exception as e:
         db.session.rollback()
+        return jsonify(error=str(e)), 500
+
+
+@cost_center_api.route('/<int:cc_id>/movements', methods=['GET'])
+@requires_auth(required_permission='view:cost_centers')
+def get_cost_center_movements(cc_id, payload):
+    try:
+        movements = []
+
+        # 1. Buscar Órdenes de Compra (OC)
+        orders = PurchaseOrder.query.filter_by(cost_center_id=cc_id).all()
+
+        for oc in orders:
+            # Calcular total de la orden
+            total = sum(float(i.quantity) * float(i.unit_price) for i in oc.items)
+
+            # Determinar fecha (usar issue_date si existe, sino created_at)
+            fecha = oc.created_at
+            if hasattr(oc, 'issue_date') and oc.issue_date:
+                fecha = oc.issue_date
+
+            movements.append({
+                'id': f"OC-{oc.id}",
+                'type': oc.order_type,  # Identificador para el icono
+                'doc_number': oc.document_number,
+                'date': fecha.isoformat() if fecha else None,
+                'description': oc.provider.name if oc.provider else "Proveedor Desconocido",
+                'amount': total,
+                'currency': oc.currency
+            })
+
+        # 2. Buscar Salidas de Almacén / Guías (GRE)
+        # Asumiendo que StockTransfer tiene un campo cost_center_id
+        transfers = StockTransfer.query.filter_by(cost_center_id=cc_id).all()
+
+        for tr in transfers:
+            # Calcular valorización de la salida (Cantidad * Precio Estándar del Producto)
+            total_valorizado = 0
+            for item in tr.items:
+                if item.product:
+                    total_valorizado += float(item.quantity) * float(item.product.standard_price)
+
+            movements.append({
+                'id': f"GRE-{tr.id}",
+                'type': 'GRE',  # Identificador para el icono
+                'doc_number': getattr(tr, 'guide_number', f"{tr.gre_series}-{tr.gre_number}"),  # Usa número de guía o ID
+                'date': tr.transfer_date.isoformat() if tr.transfer_date else tr.created_at.isoformat(),
+                'description': "Salida de Materiales / Almacén",
+                'amount': total_valorizado,
+                'currency': 'PEN'
+            })
+
+        # 3. Ordenar por fecha descendente (lo más reciente primero)
+        movements.sort(key=lambda x: x['date'] or '', reverse=True)
+
+        return jsonify(movements)
+
+    except Exception as e:
+        print(f"Error getting movements: {e}")
         return jsonify(error=str(e)), 500

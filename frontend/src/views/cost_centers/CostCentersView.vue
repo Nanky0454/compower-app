@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { Button } from '@/components/ui/button/index.js'
 import { Card } from '@/components/ui/card/index.js'
@@ -25,6 +25,16 @@ const { getAccessTokenSilently } = useAuth0()
 const costCenters = ref([])
 const isLoading = ref(true)
 const error = ref(null)
+const currentTab = ref('active') // 'active' o 'inactive'
+
+// Computed para filtrar centros de costos
+const filteredCostCenters = computed(() => {
+  if (currentTab.value === 'active') {
+    return costCenters.value.filter(cc => cc.status === 'Activo')
+  } else {
+    return costCenters.value.filter(cc => cc.status === 'Inactivo')
+  }
+})
 
 // --- Refs para el formulario (modal) ---
 const isDialogOpen = ref(false)
@@ -87,7 +97,7 @@ function openEditModal(cc) {
 }
 
 function openDetail(id){
-  router.push({ name: 'CostCenterDetail', params: { id } })
+  router.push({ name: 'cost-centers-detail', params: { id } })
 }
 // --- 3. Manejar el envío del formulario (Crear o Editar) ---
 async function handleFormSubmit() {
@@ -139,6 +149,21 @@ async function handleFormSubmit() {
       <Button @click="openCreateModal">Crear Centro de Costo</Button>
     </div>
 
+    <div class="flex gap-2 mb-4">
+      <Button
+        :variant="currentTab === 'active' ? 'default' : 'outline'"
+        @click="currentTab = 'active'"
+      >
+        Centros de Costos Activos
+      </Button>
+      <Button
+        :variant="currentTab === 'inactive' ? 'default' : 'outline'"
+        @click="currentTab = 'inactive'"
+      >
+        Centros de Costos Inactivos
+      </Button>
+    </div>
+
     <div v-if="isLoading">Cargando...</div>
     <div v-else-if="error" class="text-red-500">{{ error }}</div>
 
@@ -156,7 +181,7 @@ async function handleFormSubmit() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-for="cc in costCenters" :key="cc.id">
+          <TableRow v-for="cc in filteredCostCenters" :key="cc.id">
             <TableCell class="font-medium">{{ cc.code }}</TableCell>
             <TableCell>{{ cc.name }}</TableCell>
             <TableCell>{{ currencyFormatter.format(cc.budget) }}</TableCell>
@@ -168,7 +193,7 @@ async function handleFormSubmit() {
               </Badge>
             </TableCell>
             <TableCell>
-              <Button variant="outline" size="icon" @click="openEditModal(cc)">
+              <Button v-if="currentTab === 'active'" variant="outline" size="icon" @click="openEditModal(cc)">
                 <Pencil class="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" @click="openDetail(cc.id)">

@@ -41,12 +41,6 @@ def tarea_actualizar_tipo_cambio():
         print("Ejecutando tarea automática de Tipo de Cambio...")
 
         hoy = date.today()
-        # Verificar si ya existe para no gastar saldo de API por gusto
-        # Asumiendo que ExchangeRate tiene campos: currency, date, etc.
-        if ExchangeRate.query.filter_by(date=hoy, currency='USD').first():
-            print("El tipo de cambio de hoy ya existe.")
-            return
-
         try:
             api_key = current_app.config.get('SUNAT_API_KEY', '')
             url = "https://api.decolecta.com/v1/tipo-cambio/sunat"
@@ -102,8 +96,8 @@ def create_app(config_class=Config):
         id='actualizar_cambio_8am',
         func=tarea_actualizar_tipo_cambio,
         trigger='cron',
-        hour=8,
-        minute=0,
+        hour=12,
+        minute=45,
         replace_existing=True
     )
 
