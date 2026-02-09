@@ -80,8 +80,6 @@ class PurchaseOrder(db.Model):
 
     scope = db.Column(db.Text, nullable=True)
 
-    # --- NUEVO CAMPO PARA CONDICIONES EDITABLES ---
-    # Aquí guardaremos la lista ["Condición 1", "Condición 2"...] como texto JSON
     commercial_conditions = db.Column(db.Text, nullable=True)
     # ----------------------------------------------
 
@@ -97,7 +95,7 @@ class PurchaseOrder(db.Model):
 
     footer_note = db.Column(db.Text, nullable=True)
 
-    # --- Relaciones (IGUAL) ---
+    # --- Relaciones ---
     owner_id = db.Column(db.String(255), nullable=False)
     provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=False)
     provider = db.relationship('Provider')

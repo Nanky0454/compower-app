@@ -48,7 +48,7 @@ def get_cost_centers_with_budget(payload):
 
         # Paso 2: Obtener Centros
         print("2. Obteniendo lista de CostCenters de la BD...")  # LOG 3
-        cost_centers = CostCenter.query.order_by(CostCenter.code).all()
+        cost_centers = CostCenter.query.order_by(CostCenter.code.desc()).all()
         print(f"   -> Centros encontrados: {len(cost_centers)}")
 
         # Paso 3: Combinar
@@ -181,7 +181,7 @@ def get_cost_center_movements(cc_id, payload):
         for oc in orders:
             # Calcular total de la orden
             total = sum(float(i.quantity) * float(i.unit_price) for i in oc.items)
-
+            print(f"Total de ordenes de compra: {total}")
             # Determinar fecha (usar issue_date si existe, sino created_at)
             fecha = oc.created_at
             if hasattr(oc, 'issue_date') and oc.issue_date:
@@ -197,6 +197,8 @@ def get_cost_center_movements(cc_id, payload):
                 'currency': oc.currency
             })
 
+
+
         # 2. Buscar Salidas de Almacén / Guías (GRE)
         # Asumiendo que StockTransfer tiene un campo cost_center_id
         transfers = StockTransfer.query.filter_by(cost_center_id=cc_id).all()
@@ -207,13 +209,13 @@ def get_cost_center_movements(cc_id, payload):
             for item in tr.items:
                 if item.product:
                     total_valorizado += float(item.quantity) * float(item.product.standard_price)
-
+            print(f"Total de GRE: {total_valorizado}") # Moved outside the inner loop
             movements.append({
                 'id': f"GRE-{tr.id}",
                 'type': 'GRE',  # Identificador para el icono
                 'doc_number': getattr(tr, 'guide_number', f"{tr.gre_series}-{tr.gre_number}"),  # Usa número de guía o ID
                 'date': tr.transfer_date.isoformat() if tr.transfer_date else tr.created_at.isoformat(),
-                'description': "Salida de Materiales / Almacén",
+                'site': tr.destination_external_address,
                 'amount': total_valorizado,
                 'currency': 'PEN'
             })

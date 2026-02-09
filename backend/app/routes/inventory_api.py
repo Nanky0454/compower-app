@@ -147,7 +147,8 @@ def receive_inventory(payload):
             purchase_order_id=order_id,
             warehouse_id=warehouse_id,
             invoice_number=invoice_number,
-            created_by=user_id
+            created_by=user_id,
+            cost_center_id=order.cost_center_id # AÑADIDO: Guardar el centro de costo de la OC
         )
         db.session.add(new_receipt)
         db.session.flush()
@@ -179,6 +180,7 @@ def receive_inventory(payload):
                 receipt_id=new_receipt.id,
                 product_id=product_id,
                 quantity=quantity_received,
+                unit_price=po_item.unit_price if po_item else 0.0,
                 location=location,
                 po_item_id=po_item_id
             )
@@ -504,7 +506,8 @@ def direct_receive_inventory(payload):
             provider_id=target_provider_id,  # <--- Guardamos quién envió la mercadería
             warehouse_id=data['warehouse_id'],
             invoice_number=data.get('invoice_number', 'SN'),
-            created_by=user_id
+            created_by=user_id,
+            cost_center_id=data.get('cost_center_id') # AÑADIDO: Centro de costo directo
         )
         db.session.add(new_receipt)
         db.session.flush()  # Obtenemos el ID de la recepción
@@ -531,6 +534,7 @@ def direct_receive_inventory(payload):
                 receipt_id=new_receipt.id,
                 product_id=product_id,
                 quantity=qty,
+                unit_price=raw_unit_price,
                 location=location,
                 po_item_id=None  # <--- NULL: No hay item de OC vinculado
             )
@@ -614,3 +618,126 @@ def direct_receive_inventory(payload):
         return jsonify(error=f"Error al procesar ingreso: {str(e)}"), 500
 
 
+@inventory_api.route('/receipts', methods=['GET'])
+@requires_auth(required_permission='view:inventory')
+def get_product_receipts(payload):
+    try:
+        # Query all product receipts and eager load related data for efficiency
+        receipts = ProductReceipt.query.options(
+            joinedload(ProductReceipt.provider),
+            joinedload(ProductReceipt.cost_center)
+        ).order_by(ProductReceipt.receipt_date.desc()).all()
+
+        result = []
+        for receipt in receipts:
+            result.append({
+                'id': receipt.id,
+                'invoice_number': receipt.invoice_number,
+                'receipt_date': receipt.receipt_date.isoformat(),
+                'provider_name': receipt.provider.name if receipt.provider else 'N/A',
+                'provider_id': receipt.provider_id,
+                'cost_center_name': receipt.cost_center.code if receipt.cost_center else 'N/A',
+                'cost_center_id': receipt.cost_center_id
+            })
+        return jsonify(result)
+    except Exception as e:
+        print(f"--- ERROR LISTANDO RECEPCIONES: {str(e)} ---")
+        return jsonify(error=str(e)), 500
+
+@inventory_api.route('/receipts/<int:receipt_id>', methods=['PUT'])
+@requires_auth(required_permission='manage:inventory')
+def update_product_receipt(payload, receipt_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify(error="No data provided"), 400
+
+        receipt = ProductReceipt.query.get(receipt_id)
+        if not receipt:
+            return jsonify(error="Recepción no encontrada"), 404
+
+        if 'invoice_number' in data:
+            receipt.invoice_number = data['invoice_number']
+        if 'provider_id' in data:
+            receipt.provider_id = data['provider_id']
+        if 'cost_center_id' in data:
+            receipt.cost_center_id = data['cost_center_id']
+
+        db.session.commit()
+
+        return jsonify(success=True, message="Recepción actualizada correctamente.")
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"--- ERROR ACTUALIZANDO RECEPCIÓN: {str(e)} ---")
+        return jsonify(error=str(e)), 500
+
+
+@inventory_api.route('/receipts/<int:receipt_id>', methods=['GET'])
+@requires_auth(required_permission='view:inventory')
+def get_product_receipt_detail(payload, receipt_id):
+    try:
+        receipt = ProductReceipt.query.options(
+            joinedload(ProductReceipt.provider),
+            joinedload(ProductReceipt.warehouse),
+            joinedload(ProductReceipt.cost_center),
+            joinedload(ProductReceipt.items).joinedload(ProductReceiptItem.product)
+        ).filter_by(id=receipt_id).first()
+
+        if not receipt:
+            return jsonify(error="Recepción no encontrada"), 404
+
+        items_data = []
+        for item in receipt.items:
+            items_data.append({
+                'id': item.id,
+                'product_name': item.product.name if item.product else 'N/A',
+                'product_sku': item.product.sku if item.product else 'N/A',
+                'quantity': float(item.quantity),
+                'unit_price': float(item.unit_price) if item.unit_price else 0.0,
+                'location': item.location
+            })
+
+        result = {
+            'id': receipt.id,
+            'invoice_number': receipt.invoice_number,
+            'receipt_date': receipt.receipt_date.isoformat(),
+            'provider_name': receipt.provider.name if receipt.provider else 'N/A',
+            'cost_center_name': receipt.cost_center.code if receipt.cost_center else 'N/A',
+            'warehouse_name': receipt.warehouse.name if receipt.warehouse else 'N/A',
+            'items': items_data
+        }
+        return jsonify(result)
+    except Exception as e:
+        print(f"--- ERROR OBTENIENDO DETALLE DE RECEPCIÓN: {str(e)} ---")
+        return jsonify(error=str(e)), 500
+
+@inventory_api.route('/receipt-items/<int:item_id>', methods=['PUT'])
+@requires_auth(required_permission='manage:inventory')
+def update_product_receipt_item(payload, item_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify(error="No data provided"), 400
+
+        item = ProductReceiptItem.query.get(item_id)
+        if not item:
+            return jsonify(error="Ítem de recepción no encontrado"), 404
+
+        # TODO: Recalculate average cost for the product.
+        # This is a complex operation that requires careful implementation.
+        # For now, we are just updating the item.
+
+        if 'quantity' in data:
+            item.quantity = data['quantity']
+        if 'unit_price' in data:
+            item.unit_price = data['unit_price']
+
+        db.session.commit()
+
+        return jsonify(success=True, message="Ítem de recepción actualizado correctamente.")
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"--- ERROR ACTUALIZANDO ÍTEM DE RECEPCIÓN: {str(e)} ---")
+        return jsonify(error=str(e)), 500

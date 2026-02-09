@@ -24,6 +24,8 @@ class ProductReceipt(db.Model):
     # Agregar relación al proveedor
     provider = db.relationship('Provider')
     warehouse = db.relationship('Warehouse')
+    cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True) # Nuevo campo
+    cost_center = db.relationship('CostCenter') # Nueva relación
     items = db.relationship('ProductReceiptItem', backref='receipt', cascade="all, delete-orphan")
 
 # --- DETALLE (Cada producto recibido) ---
@@ -35,7 +37,10 @@ class ProductReceiptItem(db.Model):
 
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Numeric(10, 2), nullable=False)
+    unit_price = db.Column(db.Numeric(10, 2), nullable=False, default=0.0)
     location = db.Column(db.String(50), nullable=True)  # Ubicación en almacén (A1, B2...)
 
     # Para saber a qué item de la OC corresponde (trazabilidad)
     po_item_id = db.Column(db.Integer, db.ForeignKey('purchase_order_items.id'), nullable=True)
+
+    product = db.relationship('Product')
