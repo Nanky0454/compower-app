@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 // Componentes UI
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card/index.js'
@@ -8,14 +8,16 @@ import { Input } from '@/components/ui/input/index.js'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Badge } from '@/components/ui/badge/index.js'
+import { Checkbox } from '@/components/ui/checkbox'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 // Iconos
-import { Download, Search, Loader2, Printer, FileText, Layers } from 'lucide-vue-next'
+import { Download, Search, Loader2, Printer, FileText, Layers, ChevronsUpDown, X } from 'lucide-vue-next'
 
 const { getAccessTokenSilently } = useAuth0()
 
 // --- ESTADO GENERAL ---
-const activeTab = ref('stock') // 'stock' | 'costos'
+const activeTab = ref('stock') // 'stock' | 'costos' | 'detailedItem'
 
 // Fechas por defecto
 const now = new Date()
@@ -24,7 +26,7 @@ const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString()
 
 
 // =========================================================
-// LÓGICA TAB 1: REPORTE DE STOCK (Tu código original)
+// LÓGICA TAB 1: REPORTE DE STOCK
 // =========================================================
 const warehouses = ref([])
 const stockReportData = ref([])
@@ -36,11 +38,12 @@ const stockFilters = ref({
     warehouse_id: 'all'
 })
 
-// Cargar almacenes al inicio
+// Cargar almacenes y productos al inicio
 onMounted(async () => {
+    // Cargar Almacenes
     try {
         const token = await getAccessTokenSilently()
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/warehouses`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/inventory/warehouses`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
         if (response.ok) {
@@ -49,6 +52,9 @@ onMounted(async () => {
     } catch (e) {
         console.error("Error cargando almacenes:", e)
     }
+
+    // Cargar Productos
+    await fetchAllProducts()
 })
 
 async function generateStockReport(format = 'json') {
@@ -60,13 +66,13 @@ async function generateStockReport(format = 'json') {
         if (paramsToSend.warehouse_id === 'all') delete paramsToSend.warehouse_id
 
         const params = new URLSearchParams(paramsToSend)
-        const url = `${import.meta.env.VITE_API_URL}/api/reports/stock-transfers?${params.toString()}`
+        const url = `${import.meta.env.VITE_API_URL}/api/reports/stock-movement?${params.toString()}`
 
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
 
-        if (!response.ok) throw new Error('Error generando reporte')
+        if (!response.ok) throw new Error('Error generando reporte de stock')
 
         if (format === 'json') {
             stockReportData.value = await response.json()
@@ -91,7 +97,7 @@ async function generateStockReport(format = 'json') {
 
 
 // =========================================================
-// LÓGICA TAB 2: REPORTE DE COSTOS (Nuevo requerimiento)
+// LÓGICA TAB 2: REPORTE DE COSTOS
 // =========================================================
 const costReportData = ref([])
 const isLoadingCost = ref(false)
@@ -106,24 +112,19 @@ async function generateCostReport(format = 'json') {
     const token = await getAccessTokenSilently()
     const params = new URLSearchParams()
 
-    // Parámetros básicos
     if (costFilters.value.start_date) params.append('start_date', costFilters.value.start_date)
     if (costFilters.value.end_date) params.append('end_date', costFilters.value.end_date)
-
-    // Parámetro de formato ('json' o 'pdf')
     params.append('format', format)
 
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reports/gre-by-cost-center?${params.toString()}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
 
-    if (!response.ok) throw new Error('Error generando el reporte')
+    if (!response.ok) throw new Error('Error generando el reporte de costos')
 
     if (format === 'json') {
-        // Carga normal en pantalla
         costReportData.value = await response.json()
     } else {
-        // Descarga de PDF
         const blob = await response.blob()
         const urlBlob = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -142,13 +143,120 @@ async function generateCostReport(format = 'json') {
   }
 }
 
+// =========================================================
+// LÓGICA TAB 3: REPORTE DETALLADO POR ITEM (CORREGIDO)
+// =========================================================
+const allProducts = ref([])
+const isLoadingDetailed = ref(false)
+const detailedFilters = ref({
+    start_date: firstDay,
+    end_date: lastDay,
+    selectedProducts: []
+})
+const searchTerm = ref('')
+
+const filteredProducts = computed(() => {
+    if (!searchTerm.value) return allProducts.value
+    return allProducts.value.filter(p =>
+        p.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.value.toLowerCase())
+    )
+})
+
+async function fetchAllProducts() {
+    try {
+        const token = await getAccessTokenSilently()
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+            allProducts.value = await response.json()
+        }
+    } catch (e) {
+        console.error("Error cargando productos:", e)
+    }
+}
+
+// --- NUEVA LÓGICA DE SELECCIÓN ROBUSTA ---
+function isProductSelected(productId) {
+    // Usamos '==' para que coincida aunque uno sea string y el otro number
+    return detailedFilters.value.selectedProducts.some(id => id == productId)
+}
+
+function toggleProduct(product) {
+    const rawId = product.id
+    const index = detailedFilters.value.selectedProducts.findIndex(id => id == rawId)
+
+    if (index > -1) {
+        detailedFilters.value.selectedProducts.splice(index, 1)
+    } else {
+        detailedFilters.value.selectedProducts.push(rawId)
+    }
+}
+
+function removeProductFromSelection(productId) {
+    const index = detailedFilters.value.selectedProducts.findIndex(id => id == productId)
+    if (index > -1) {
+        detailedFilters.value.selectedProducts.splice(index, 1)
+    }
+}
+
+// Computed para mostrar los chips abajo
+const selectedProductDetails = computed(() => {
+    return allProducts.value.filter(p =>
+        detailedFilters.value.selectedProducts.some(id => id == p.id)
+    )
+})
+// -------------------------------------------
+
+async function generateDetailedReport() {
+    if (detailedFilters.value.selectedProducts.length === 0) {
+        alert("Por favor, seleccione al menos un producto.")
+        return
+    }
+
+    isLoadingDetailed.value = true
+    try {
+        const token = await getAccessTokenSilently()
+        const params = new URLSearchParams({
+            start_date: detailedFilters.value.start_date,
+            end_date: detailedFilters.value.end_date,
+            product_ids: detailedFilters.value.selectedProducts.join(',')
+        })
+
+        const url = `${import.meta.env.VITE_API_URL}/api/reports/item-movement-report?${params.toString()}`
+
+        const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+
+        if (!response.ok) {
+            const err = await response.json()
+            throw new Error(err.error || 'Error generando el reporte detallado')
+        }
+
+        const blob = await response.blob()
+        const urlBlob = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = urlBlob
+        a.download = `Reporte_Detallado_Items.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+
+    } catch (e) {
+        console.error(e)
+        alert("Error: " + e.message)
+    } finally {
+        isLoadingDetailed.value = false
+    }
+}
+
+
 // --- Helpers para Cálculos en el Frontend ---
 function formatCurrency(val) {
   return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val || 0)
 }
 
 function getItemSubtotal(item) {
-  // Asumimos que el backend trae 'unit_price' (o 'cost') y 'cantidad'
   const price = parseFloat(item.unit_price || item.cost || 0)
   const qty = parseFloat(item.cantidad || 0)
   return price * qty
@@ -163,6 +271,7 @@ function getCCTotal(cc) {
   if (!cc.gres) return 0
   return cc.gres.reduce((acc, gre) => acc + getGuideTotal(gre), 0)
 }
+
 </script>
 
 <template>
@@ -172,27 +281,35 @@ function getCCTotal(cc) {
             <h1 class="text-2xl font-bold tracking-tight">Reportes de Almacén</h1>
         </div>
 
-        <div class="flex space-x-1 border-b pb-1">
+        <div class="flex space-x-1 border-b">
             <Button
                 :variant="activeTab === 'stock' ? 'secondary' : 'ghost'"
                 @click="activeTab = 'stock'"
-                class="rounded-none border-b-2"
-                :class="activeTab === 'stock' ? 'border-primary bg-secondary' : 'border-transparent'"
+                class="rounded-b-none border-b-2"
+                :class="activeTab === 'stock' ? 'border-primary' : 'border-transparent'"
             >
                 <Layers class="w-4 h-4 mr-2"/> Movimientos (Kardex)
             </Button>
             <Button
                 :variant="activeTab === 'costos' ? 'secondary' : 'ghost'"
                 @click="activeTab = 'costos'"
-                class="rounded-none border-b-2"
-                :class="activeTab === 'costos' ? 'border-primary bg-secondary' : 'border-transparent'"
+                class="rounded-b-none border-b-2"
+                :class="activeTab === 'costos' ? 'border-primary' : 'border-transparent'"
             >
                 <FileText class="w-4 h-4 mr-2"/> Costos por Proyecto
+            </Button>
+            <Button
+                :variant="activeTab === 'detailedItem' ? 'secondary' : 'ghost'"
+                @click="activeTab = 'detailedItem'"
+                class="rounded-b-none border-b-2"
+                :class="activeTab === 'detailedItem' ? 'border-primary' : 'border-transparent'"
+            >
+                <Printer class="w-4 h-4 mr-2"/> Reporte Detallado por Item
             </Button>
         </div>
 
         <div v-if="activeTab === 'stock'" class="space-y-4 animate-in fade-in">
-            <Card class="p-4 bg-gray-50">
+             <Card class="p-4 bg-gray-50/50 border-dashed">
                 <div class="flex flex-wrap gap-4 items-end">
                     <div class="w-64">
                         <label class="text-xs font-bold text-gray-500 mb-1 block">Almacén</label>
@@ -230,7 +347,7 @@ function getCCTotal(cc) {
             </Card>
 
             <Card v-if="stockReportData.length > 0">
-                <Table>
+                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Código</TableHead>
@@ -268,7 +385,7 @@ function getCCTotal(cc) {
 
         <div v-if="activeTab === 'costos'" class="space-y-6 animate-in fade-in">
 
-            <Card class="p-4 bg-gray-50">
+             <Card class="p-4 bg-gray-50/50 border-dashed">
                 <div class="flex flex-wrap gap-4 items-end">
                     <div>
                         <label class="text-xs font-bold text-gray-500 mb-1 block">Fecha Inicio</label>
@@ -354,6 +471,136 @@ function getCCTotal(cc) {
             <div v-else-if="!isLoadingCost" class="text-center py-10 text-gray-400 border-2 border-dashed rounded-lg">
                 No hay información de costos para el rango de fechas seleccionado.
             </div>
+        </div>
+
+        <div v-if="activeTab === 'detailedItem'" class="space-y-4 animate-in fade-in">
+
+            <Card class="p-4 bg-gray-50/50">
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 mb-1 block">Fecha Inicio</label>
+                        <Input type="date" v-model="detailedFilters.start_date" class="bg-white" />
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 mb-1 block">Fecha Fin</label>
+                        <Input type="date" v-model="detailedFilters.end_date" class="bg-white" />
+                    </div>
+
+                    <div class="w-96">
+                        <label class="text-xs font-bold text-gray-500 mb-1 block">Agregar Productos</label>
+                         <DropdownMenu>
+                            <DropdownMenuTrigger as-child>
+                              <Button variant="outline" class="w-full justify-between bg-white text-left font-normal">
+                                <span class="truncate">
+                                    {{ detailedFilters.selectedProducts.length > 0
+                                        ? `${detailedFilters.selectedProducts.length} seleccionados`
+                                        : 'Buscar y seleccionar...'
+                                    }}
+                                </span>
+                                <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent class="w-96 max-h-80 overflow-y-auto" align="start">
+                                <div class="p-2 sticky top-0 bg-white z-10 border-b mb-2">
+                                    <Input
+                                        v-model="searchTerm"
+                                        placeholder="Escribe para filtrar..."
+                                        class="h-8"
+                                        @keydown.stop
+                                    />
+                                </div>
+
+                                <DropdownMenuItem
+                                    v-for="product in filteredProducts"
+                                    :key="product.id"
+                                    class="cursor-pointer focus:bg-gray-100"
+                                    @select.prevent
+                                    @click="toggleProduct(product)"
+                                >
+                                    <div class="flex items-center space-x-2 w-full py-1 pointer-events-none">
+                                        <DropdownMenuItem
+                                            v-for="product in filteredProducts"
+                                            :key="product.id"
+                                            class="cursor-pointer focus:bg-gray-100"
+                                            @select.prevent
+                                            @click="toggleProduct(product)"
+                                        >
+                                            <div class="flex items-center space-x-2 w-full py-1 pointer-events-none">
+                                                <Checkbox
+                                                    :id="'prod-' + product.id"
+                                                    :checked="isProductSelected(product.id)"
+                                                    :model-value="isProductSelected(product.id)"
+                                                    class="pointer-events-none"
+                                                />
+                                                <label :for="'prod-' + product.id" class="text-xs w-full cursor-pointer">
+                                                    <span class="font-bold text-blue-600 block">{{ product.sku }}</span>
+                                                    <span class="text-gray-700 leading-tight">{{ product.name }}</span>
+                                                </label>
+                                            </div>
+                                        </DropdownMenuItem>
+                                        <label :for="'prod-' + product.id" class="text-xs w-full cursor-pointer">
+                                            <span class="font-bold text-blue-600 block">{{ product.sku }}</span>
+                                            <span class="text-gray-700 leading-tight">{{ product.name }}</span>
+                                        </label>
+                                    </div>
+                                </DropdownMenuItem>
+
+                                <div v-if="filteredProducts.length === 0" class="p-2 text-xs text-center text-gray-400">
+                                    No se encontraron productos
+                                </div>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+
+                    <div class="flex gap-2 ml-auto">
+                        <Button @click="generateDetailedReport" :disabled="isLoadingDetailed || detailedFilters.selectedProducts.length === 0">
+                            <Loader2 v-if="isLoadingDetailed" class="mr-2 h-4 w-4 animate-spin" />
+                            <Printer v-else class="mr-2 h-4 w-4" /> Imprimir Reporte
+                        </Button>
+                    </div>
+                </div>
+            </Card>
+
+
+            <div class="min-h-[150px] border-2 border-dashed rounded-lg p-6 transition-colors"
+                 :class="detailedFilters.selectedProducts.length > 0 ? 'bg-white border-blue-200' : 'bg-gray-50 border-gray-200'">
+
+                <div v-if="detailedFilters.selectedProducts.length > 0">
+                    <h3 class="text-sm font-bold text-gray-500 mb-3 flex items-center gap-2">
+                        <Layers class="w-4 h-4"/> Productos a incluir en el reporte:
+                    </h3>
+
+                    <div class="flex flex-wrap gap-2">
+                        <Badge
+                            v-for="product in selectedProductDetails"
+                            :key="product.id"
+                            variant="secondary"
+                            class="pl-3 pr-1 py-1.5 flex items-center gap-2 bg-blue-50 text-blue-700 border-blue-100 shadow-sm"
+                        >
+                            <div class="flex flex-col text-left">
+                                <span class="text-[10px] font-bold text-gray-500">{{ product.sku }}</span>
+                                <span class="text-xs font-medium max-w-[200px] truncate">{{ product.name }}</span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                class="h-6 w-6 ml-1 rounded-full hover:bg-red-100 hover:text-red-600 text-gray-400"
+                                @click="removeProductFromSelection(product.id)"
+                            >
+                                <X class="h-3 w-3" />
+                            </Button>
+                        </Badge>
+                    </div>
+                </div>
+
+                <div v-else class="h-full flex flex-col items-center justify-center text-gray-400 gap-2 py-4">
+                    <Search class="h-8 w-8 opacity-20" />
+                    <p class="text-sm">Selecciona productos en el buscador superior para verlos aquí.</p>
+                </div>
+
+            </div>
+
         </div>
 
     </div>

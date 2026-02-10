@@ -15,9 +15,19 @@ import {
   Eye, Contact, Download, ListTree, MapPin, Layers, Pencil, Ban, XCircle
 } from 'lucide-vue-next'
 
-const { getAccessTokenSilently } = useAuth0()
+const { getAccessTokenSilently, user } = useAuth0()
 const router = useRouter()
 const FLASK_API_URL = `${import.meta.env.VITE_API_URL}/api`
+
+const AUTH0_NAMESPACE = 'https://appcompower.com'
+const isAdmin = computed(() => {
+  const rolesKey = AUTH0_NAMESPACE + '/roles';
+  if (user.value && user.value[rolesKey] && Array.isArray(user.value[rolesKey])) {
+    const userRoles = user.value[rolesKey].map(role => role.toLowerCase());
+    return userRoles.includes('admin');
+  }
+  return false;
+})
 
 // --- ESTADOS DE LA VISTA ---
 const viewMode = ref('list')
@@ -514,6 +524,30 @@ async function handleAnnul(order) {
   }
 }
 
+async function handleDelete(order) {
+  if (!confirm(`¿Estás seguro de ELIMINAR PERMANENTEMENTE la orden ${order.codigo || order.document_number}? Esta acción no se puede deshacer.`)) return
+
+  isLoadingList.value = true
+  try {
+    const token = await getAccessTokenSilently()
+    const res = await fetch(`${FLASK_API_URL}/purchases/${order.id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Error al eliminar la orden')
+
+    alert(data.message)
+    await fetchOrders()
+
+  } catch (e) {
+    alert(e.message)
+  } finally {
+    isLoadingList.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -567,6 +601,15 @@ async function handleAnnul(order) {
                   {{ order.moneda }} {{ order.total_amount.toFixed(2) }}
                 </TableCell>
                 <TableCell class="text-center flex justify-center gap-2">
+                  <Button
+                      v-if="isAdmin"
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      title="Eliminar Orden"
+                      @click="handleDelete(order)">
+                     <Trash2 class="w-4 h-4" />
+                   </Button>
                   <Button
                       v-if="order.status === 'Borrador'"
                       variant="ghost"

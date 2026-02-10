@@ -40,8 +40,8 @@ def get_stock_movement_report():
     query = db.session.query(
         Product.sku,
         Product.name,
-        Product.unit_measure_code,
-        Product.cost,  # Agregamos el costo del producto para cálculos
+        Product.unit_measure_id,
+        Product.standard_price,  # Agregamos el costo del producto para cálculos
         func.sum(
             case((InventoryTransaction.timestamp < start_date, InventoryTransaction.quantity_change), else_=0)).label(
             'initial_stock'),
@@ -62,12 +62,12 @@ def get_stock_movement_report():
     units_map = {u.sunat_code: u.symbol for u in UnitMeasure.query.all()}
 
     for row in results:
-        initial = row.initial_stock or 0
-        entries = row.entries or 0
-        exits = row.exits or 0
-        final_stock = initial + entries - exits
-        um_symbol = units_map.get(row.unit_measure_code, 'UND')
-        costo_unitario = float(row.cost or 0)
+        initial = float(row.initial_stock or 0)
+        entries = float(row.entries or 0)
+        exits = float(row.exits or 0)
+        final_stock = float(initial + entries - exits)
+        um_symbol = units_map.get(row.unit_measure_id, 'UND')
+        costo_unitario = float(row.standard_price or 0)
 
         if initial == 0 and entries == 0 and exits == 0:
             continue
@@ -84,15 +84,101 @@ def get_stock_movement_report():
             'importe': final_stock * costo_unitario  # Calculo simple de valorizado
         })
 
+    total_importe = sum(item['importe'] for item in report_data)
+
     if format_type == 'json':
         return jsonify(report_data)
     elif format_type == 'pdf':
         html = render_template('stock_report.html', data=report_data, start_date=start_date.strftime('%d/%m/%Y'),
-                               end_date=end_date.strftime('%d/%m/%Y'))
+                               end_date=end_date.strftime('%d/%m/%Y'), total_importe=total_importe)
         pdf = HTML(string=html).write_pdf()
         return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                          download_name='Stock_Reporte.pdf')
 
+from ..models.reception import ProductReceipt, ProductReceiptItem
+from ..models.stock_transfer import StockTransferItem
+from ..models.inventory_models import InventoryStock
+
+@report_api.route('/item-movement-report', methods=['GET'])
+def get_item_movement_report():
+    # 1. Obtener filtros
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    product_ids_str = request.args.get('product_ids') # Ej: "1,2,3"
+
+    if not all([start_date_str, end_date_str, product_ids_str]):
+        return jsonify({"error": "Fechas y al menos un ID de producto son requeridos"}), 400
+
+    try:
+        product_ids = [int(pid) for pid in product_ids_str.split(',')]
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time_obj.max)
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Argumentos inválidos: {e}"}), 400
+
+    report_data = []
+
+    for product_id in product_ids:
+        product = Product.query.get(product_id)
+        if not product:
+            continue
+
+        # a. Calcular Stock Actual
+        current_stock = db.session.query(func.sum(InventoryStock.quantity)).filter_by(product_id=product_id).scalar() or 0
+
+        movements = []
+
+        # b. Obtener Entradas (Recepciones)
+        entries = db.session.query(ProductReceiptItem, ProductReceipt)\
+            .join(ProductReceipt, ProductReceiptItem.receipt_id == ProductReceipt.id)\
+            .filter(ProductReceiptItem.product_id == product_id)\
+            .filter(ProductReceipt.receipt_date.between(start_date, end_date))\
+            .all()
+
+        for item, receipt in entries:
+            movements.append({
+                'date': receipt.receipt_date.strftime('%d-%m-%Y'),
+                'type': 'ENTRADA',
+                'quantity': float(item.quantity),
+                'reference': f"Factura: {receipt.invoice_number or 'S/N'}"
+            })
+
+        # c. Obtener Salidas (Transferencias)
+        exits = db.session.query(StockTransferItem, StockTransfer)\
+            .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id)\
+            .filter(StockTransferItem.product_id == product_id)\
+            .filter(StockTransfer.status != 'Anulada')\
+            .filter(StockTransfer.transfer_date.between(start_date, end_date))\
+            .options(joinedload(StockTransfer.cost_center))\
+            .all()
+
+        for item, transfer in exits:
+            site_name = transfer.cost_center.name if transfer.cost_center else 'N/A'
+            movements.append({
+                'date': transfer.transfer_date.strftime('%d-%m-%Y'),
+                'type': 'SALIDA',
+                'quantity': float(item.quantity),
+                'reference': f"Site: {site_name}"
+            })
+
+        # d. Ordenar movimientos por fecha
+        movements.sort(key=lambda x: datetime.strptime(x['date'], '%d-%m-%Y'))
+
+        report_data.append({
+            'product_name': product.name,
+            'product_sku': product.sku,
+            'current_stock': float(current_stock),
+            'movements': movements
+        })
+
+    # Renderizar PDF
+    html = render_template('item_report_detail.html',
+                           data=report_data,
+                           start_date=start_date.strftime('%d/%m/%Y'),
+                           end_date=end_date.strftime('%d/%m/%Y'))
+    pdf = HTML(string=html).write_pdf()
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
+                     download_name='Reporte_Detallado_Item.pdf')
 
 # ==========================================
 # REPORTE 2: COSTOS POR PROYECTO (NUEVO)

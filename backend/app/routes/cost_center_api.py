@@ -26,7 +26,10 @@ def get_cost_centers_with_budget(payload):
             )
         ).join(StockTransferItem, StockTransfer.id == StockTransferItem.transfer_id) \
             .join(Product, StockTransferItem.product_id == Product.id) \
-            .filter(StockTransfer.cost_center_id.isnot(None)) \
+            .filter(
+            StockTransfer.cost_center_id.isnot(None),
+            StockTransfer.status == 'Completada (GRE Remitente)'
+        ) \
             .group_by(StockTransfer.cost_center_id) \
             .all()
 
@@ -201,14 +204,15 @@ def get_cost_center_movements(cc_id, payload):
 
         # 2. Buscar Salidas de Almacén / Guías (GRE)
         # Asumiendo que StockTransfer tiene un campo cost_center_id
-        transfers = StockTransfer.query.filter_by(cost_center_id=cc_id).all()
+        transfers = StockTransfer.query.filter_by(cost_center_id=cc_id, status = 'Completada (GRE Remitente)').all()
 
         for tr in transfers:
             # Calcular valorización de la salida (Cantidad * Precio Estándar del Producto)
             total_valorizado = 0
             for item in tr.items:
-                if item.product:
-                    total_valorizado += float(item.quantity) * float(item.product.standard_price)
+                if tr.status == 'Completada (GRE Remitente)':
+                    if item.product:
+                        total_valorizado += float(item.quantity) * float(item.product.standard_price)
             print(f"Total de GRE: {total_valorizado}") # Moved outside the inner loop
             movements.append({
                 'id': f"GRE-{tr.id}",
@@ -216,6 +220,7 @@ def get_cost_center_movements(cc_id, payload):
                 'doc_number': getattr(tr, 'guide_number', f"{tr.gre_series}-{tr.gre_number}"),  # Usa número de guía o ID
                 'date': tr.transfer_date.isoformat() if tr.transfer_date else tr.created_at.isoformat(),
                 'site': tr.destination_external_address,
+                'status': tr.status,
                 'amount': total_valorizado,
                 'currency': 'PEN'
             })

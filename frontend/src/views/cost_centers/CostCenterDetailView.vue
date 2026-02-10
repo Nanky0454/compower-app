@@ -22,7 +22,7 @@ const costCenterData = ref(null) // Datos generales (Presupuesto)
 const movements = ref([]) // Lista de movimientos (GRE/OC)
 
 // --- FILTROS PARA TABLAS SEPARADAS ---
-const greMovements = computed(() => movements.value.filter(m => m.type === 'GRE'))
+const greMovements = computed(() => movements.value.filter(m => m.type === 'GRE' && m.status === 'Completada (GRE Remitente)'))
 const ocMovements = computed(() => movements.value.filter(m => m.type === 'OC' || m.type === 'OS'))
 
 

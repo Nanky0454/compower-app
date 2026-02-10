@@ -221,6 +221,30 @@ def update_purchase(order_id, payload):
         return jsonify(error=str(e)), 500
 
 
+@purchase_api.route('/<int:order_id>', methods=['DELETE'])
+@requires_auth(required_permission='create:purchases')
+def delete_purchase(payload, order_id):
+    try:
+        order = PurchaseOrder.query.get_or_404(order_id)
+
+        # Optional: Add checks here to see if an order can be deleted
+        # For example, prevent deletion if it's already 'Recibida'
+        #if order.status.name in ['Recibida']:
+         #    return jsonify(error="No se puede eliminar una orden que ya ha sido recibida."), 400
+
+        # Delete related items first
+        PurchaseOrderItem.query.filter_by(order_id=order_id).delete()
+
+        # Delete the order itself
+        db.session.delete(order)
+        db.session.commit()
+
+        return jsonify(success=True, message=f"Orden {order.document_number} eliminada.")
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(error=str(e)), 500
+
+
 # --- API 9: Search Providers ---
 @purchase_api.route('/providers', methods=['GET'])
 @requires_auth(required_permission='create:purchases')

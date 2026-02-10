@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reporte Detallado de Movimientos</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
+        h1 { font-size: 18px; text-align: center; margin-bottom: 10px; }
+        h2 { font-size: 14px; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+        h3 { font-size: 12px; margin-top: 10px; margin-bottom: 3px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th, td { border: 1px solid #eee; padding: 4px; text-align: left; }
+        th { background-color: #f5f5f5; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .date-range { text-align: center; margin-bottom: 20px; font-size: 12px; }
+        .product-section { margin-bottom: 20px; border: 1px solid #eee; padding: 10px; }
+        .product-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .product-header div { font-weight: bold; }
+        .current-stock { float: right; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Reporte Detallado de Movimientos de Items</h1>
+        <p class="date-range">Periodo: {{ start_date }} - {{ end_date }}</p>
+    </div>
+
+    {% if data %}
+        {% for product_data in data %}
+            <div class="product-section">
+                <h2>
+                    {{ product_data.product_name }} ({{ product_data.product_sku }})
+                    <span class="current-stock">Stock Actual: {{ product_data.current_stock | round(2) }}</span>
+                </h2>
+
+                {% if product_data.movements %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th width="15%">Fecha</th>
+                                <th width="15%">Tipo</th>
+                                <th width="20%">Referencia</th>
+                                <th width="10%" style="text-align: right;">Cantidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movement in product_data.movements %}
+                                <tr>
+                                    <td>{{ movement.date }}</td>
+                                    <td>{{ movement.type }}</td>
+                                    <td>{{ movement.reference }}</td>
+                                    <td style="text-align: right;">{{ movement.quantity | round(2) }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No se registraron movimientos para este item en el periodo seleccionado.</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No hay datos disponibles para el reporte.</p>
+    {% endif %}
+</body>
+</html>
