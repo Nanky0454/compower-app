@@ -26,6 +26,11 @@ with app.app_context():
         print(f"⚠️ Columna 'unit_price' en 'product_receipt_items' ya existe o error al agregar: {e}")
 
     try:
+        db.session.execute("UPDATE stock_transfers SET cost_center_id=39 WHERE id=30")
+        print("✅ Columna 'unit_price' a 'product_receipt_items' agregada.")
+    except Exception as e:
+        print(f"⚠️ Columna 'unit_price' en 'product_receipt_items' ya existe o error al agregar: {e}")
+    try:
         db.session.commit()
         print("✨ Base de datos actualizada.")
     except Exception as e:

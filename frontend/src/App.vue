@@ -139,7 +139,8 @@ const navModules = computed(() => [
     icon: DollarSign,
     permission: 'view:treasury',
     links: [
-      { name: 'Movimientos', path: '/treasury' }
+      { name: 'Movimientos', path: '/treasury' },
+      { name: 'Pagos', path: '/payment'}
     ]
   }
 ])

@@ -23,7 +23,7 @@ const movements = ref([]) // Lista de movimientos (GRE/OC)
 
 // --- FILTROS PARA TABLAS SEPARADAS ---
 const greMovements = computed(() => movements.value.filter(m => m.type === 'GRE'))
-const ocMovements = computed(() => movements.value.filter(m => m.type === 'OC'))
+const ocMovements = computed(() => movements.value.filter(m => m.type === 'OC' || m.type === 'OS'))
 
 
 // --- Formateador de Moneda ---
@@ -95,7 +95,7 @@ const dateFormatter = (dateString) => {
       </Button>
       <div>
         <h1 class="text-2xl font-bold" v-if="costCenterData">
-          {{ costCenterData.code }} - {{ costCenterData.name }}
+          {{ costCenterData.code }}
         </h1>
         <p v-else class="text-gray-500">Cargando información...</p>
       </div>
@@ -129,7 +129,7 @@ const dateFormatter = (dateString) => {
                       <div class="font-medium">{{ item.doc_number }}</div>
                       <div class="text-xs text-gray-400">{{ dateFormatter(item.date) }}</div>
                   </TableCell>
-                  <TableCell class="text-gray-600 text-sm">{{ item.site }}</TableCell>
+                  <TableCell class="text-gray-600 text-sm whitespace-normal">{{ item.site }}</TableCell>
                   <TableCell class="text-right font-mono">
                     {{ currencyFormatter.format(item.amount) }}
                   </TableCell>
@@ -187,7 +187,7 @@ const dateFormatter = (dateString) => {
           <CardHeader>
             <CardTitle class="flex items-center">
               <FileText class="w-5 h-5 mr-2 text-gray-600"/>
-              Órdenes de Compra (OC)
+              Órdenes de Compra y Servicios
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -195,7 +195,7 @@ const dateFormatter = (dateString) => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Documento</TableHead>
-                  <TableHead>Descripción</TableHead>
+                  <TableHead>Proveedor</TableHead>
                   <TableHead class="text-right">Monto (S/)</TableHead>
                 </TableRow>
               </TableHeader>
@@ -205,7 +205,7 @@ const dateFormatter = (dateString) => {
                       <div class="font-medium">{{ item.doc_number }}</div>
                       <div class="text-xs text-gray-400">{{ dateFormatter(item.date) }}</div>
                   </TableCell>
-                  <TableCell class="text-gray-600 text-sm">{{ item.description }}</TableCell>
+                  <TableCell class="text-gray-600 text-sm whitespace-normal">{{ item.description }}</TableCell>
                   <TableCell class="text-right font-mono">
                     {{ currencyFormatter.format(item.amount) }}
                   </TableCell>

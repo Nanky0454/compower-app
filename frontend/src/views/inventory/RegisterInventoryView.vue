@@ -24,6 +24,8 @@ const isSubmitting = ref(false)
 const warehouses = ref([])
 const productCatalog = ref([])
 const openProductSearch = ref(false)
+const costCenters = ref([]) // Nuevo: Lista de centros de costo
+const openCostCenterSearch = ref(false) // Nuevo: Estado para el popover del centro de costo
 
 // --- Formulario Principal ---
 const formData = reactive({
@@ -32,7 +34,9 @@ const formData = reactive({
   items: [],
   provider_id: null,
   provider_search: '',
-  currency: 'PEN', // <--- NUEVO CAMPO: Por defecto Soles
+  currency: 'PEN',
+  cost_center_id: 117, // Nuevo: ID por defecto
+  cost_center_name: '' // Nuevo: Nombre del centro de costo seleccionado
 })
 
 // --- Estado del Buscador de Proveedores ---
@@ -55,13 +59,22 @@ onMounted(async () => {
   isLoading.value = true
   try {
     const token = await getAccessTokenSilently()
-    const [whRes, prodRes] = await Promise.all([
+    const [whRes, prodRes, ccRes] = await Promise.all([ // Añadir ccRes
       fetch(`${API_URL}/api/inventory/warehouses`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${API_URL}/api/products`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${API_URL}/api/products`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API_URL}/api/cost-centers`, { headers: { Authorization: `Bearer ${token}` } }) // Fetch Centros de Costo
     ])
 
     if (whRes.ok) warehouses.value = await whRes.json()
     if (prodRes.ok) productCatalog.value = await prodRes.json()
+    if (ccRes.ok) {
+        costCenters.value = await ccRes.json()
+        // Establecer el centro de costo por defecto
+        const defaultCc = costCenters.value.find(cc => cc.id === formData.cost_center_id)
+        if (defaultCc) {
+            formData.cost_center_name = defaultCc.code
+        }
+    }
 
   } catch (e) {
     console.error("Error cargando datos:", e)
@@ -121,6 +134,12 @@ function selectProvider(p) {
   formData.provider_id = p.id
   formData.provider_search = p.name || p.razon_social
   showProviderResults.value = false
+}
+
+function selectCostCenter(cc) {
+  formData.cost_center_id = cc.id
+  formData.cost_center_name = cc.code
+  openCostCenterSearch.value = false
 }
 
 // --- Métodos de Gestión de Items ---
@@ -187,7 +206,8 @@ async function handleSubmit() {
       warehouse_id: formData.warehouse_id,
       invoice_number: formData.invoice_number,
       provider_id: formData.provider_id,
-      currency: formData.currency, // <--- NUEVO: Enviamos la moneda seleccionada
+      currency: formData.currency,
+      cost_center_id: formData.cost_center_id, // Añadido: Centro de costo seleccionado
       items: formData.items.map(i => ({
         product_id: i.product_id,
         quantity: i.quantity,
@@ -291,6 +311,47 @@ async function handleSubmit() {
                     <SelectItem value="USD">Dólares ($)</SelectItem>
                   </SelectContent>
                 </Select>
+            </div>
+
+            <div class="space-y-2">
+              <Label class="font-semibold text-gray-700">Centro de Costo</Label>
+              <Popover v-model:open="openCostCenterSearch">
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    :aria-expanded="openCostCenterSearch"
+                    class="w-full justify-between h-auto min-h-[40px] whitespace-normal text-left py-2 items-start"
+                  >
+                    <span class="line-clamp-2">
+                      {{ formData.cost_center_name ? formData.cost_center_name : "Seleccionar Centro de Costo..." }}
+                    </span>
+                    <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50 mt-1" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent class="p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar Centro de Costo..." />
+                    <CommandEmpty>No encontrado.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        <CommandItem
+                          v-for="cc in costCenters"
+                          :key="cc.id"
+                          :value="cc.code"
+                          @select="() => selectCostCenter(cc)"
+                          class="cursor-pointer py-2"
+                        >
+                          <Check :class="['mr-2 h-4 w-4 mt-1', formData.cost_center_id === cc.id ? 'opacity-100' : 'opacity-0']" />
+                          <div class="flex flex-col">
+                            <span class="font-medium">{{ cc.code }}</span>
+                          </div>
+                        </CommandItem>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div class="space-y-2">

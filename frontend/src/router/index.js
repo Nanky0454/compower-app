@@ -28,7 +28,7 @@ import InventoryAdjustmentView from '@/views/inventory/InventoryAdjustmentView.v
 import TreasuryConfigView from "@/views/admin/TreasuryConfigView.vue";
 import RegisterInventoryView from "@/views/inventory/RegisterInventoryView.vue";
 import ProviderListView from "@/views/purchasing/ProviderList.vue"
-import CostCenterDetail from "@/views/cost_centers/CostCenterDetail.vue";
+import CostCenterDetailView from "@/views/cost_centers/CostCenterDetailView.vue";
 
 const routes = [
   {
@@ -54,7 +54,7 @@ const routes = [
     {
     path: '/cost-centers/:id',
     name: 'cost-centers-detail',
-    component: CostCenterDetail,
+    component: CostCenterDetailView,
     meta: { title: 'Detalle de centro de costo' }
   },
   {
@@ -174,6 +174,12 @@ const routes = [
     meta: { title: 'Detalle de Transferencia' }
   },
   {
+    path: '/inventory/receipts/:id',
+    name: 'InventoryReceiptDetail',
+    component: () => import('@/views/inventory/InventoryDetailView.vue'),
+    meta: { title: 'Detalle de Recepción' }
+  },
+  {
     path: '/inventory/adjust',
     name: 'InventoryAdjustment',
     component: InventoryAdjustmentView,
@@ -196,7 +202,14 @@ const routes = [
     name: 'treasury',
     component: () => import('../views/treasury/TreasuryView.vue'),
     meta: { requiresAuth: true, permission: 'view:treasury', title: 'Modulo de Caja' }
-  }]
+  },
+    {
+        path: '/payment',
+        name: 'payment',
+        component: () => import ('../views/treasury/PaymentView.vue'),
+       meta: { requiresAuth: true, permission: 'view:treasury', title: 'Modulo de Caja'}
+       }
+    ]
 
 const router = createRouter({
   history: createWebHistory(),
