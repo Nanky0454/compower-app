@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from flask import Blueprint, request, jsonify
+from sqlalchemy import func
+
 from ..extensions import db
 from ..models.treasury import TreasuryTransaction, BankAccount, ExpenseType, IncomeType, Bank, AccountType, TreasuryTransactionDocument, TreasuryAllocationRender, TreasuryRenderDocument
 from ..models.purchase_order import DocumentType
@@ -6,7 +10,7 @@ from ..models.provider import Provider
 from ..models.employee import Employee
 import requests
 from flask import current_app
-from ..schemas.treasury import TransactionCreate, TransactionUpdate, TransactionResponse
+from ..schemas.treasury import TransactionCreate, TransactionUpdate, TransactionResponse, RenderCreate, RenderUpdate, RenderResponse
 from ..services.auth_service import requires_auth
 from datetime import datetime
 
@@ -112,6 +116,12 @@ def get_transactions(payload):
 
     transactions = query.order_by(TreasuryTransaction.date.desc(), TreasuryTransaction.created_at.desc()).all()
     return jsonify([t.to_dict() for t in transactions]), 200
+
+@treasury_api.route('/transactions/<int:id>', methods=['GET'])
+@requires_auth(required_permission='view:treasury')
+def get_transaction(id, payload):
+    transaction = TreasuryTransaction.query.get_or_404(id)
+    return jsonify(transaction.to_dict()), 200
 
 @treasury_api.route('/transactions', methods=['POST'])
 @requires_auth(required_permission='manage:treasury')
@@ -586,7 +596,7 @@ def search_employees(payload):
 def get_transaction_renders(id, payload):
     transaction = TreasuryTransaction.query.get_or_404(id)
     renders = TreasuryAllocationRender.query.filter_by(transaction_id=id).order_by(TreasuryAllocationRender.created_at.desc()).all()
-    return jsonify([r.to_dict() for r in renders]), 200
+    return jsonify([RenderResponse.from_orm(r).dict() for r in renders]), 200
 
 @treasury_api.route('/transactions/<int:id>/renders', methods=['POST'])
 @requires_auth(required_permission='manage:treasury')
@@ -595,42 +605,68 @@ def create_transaction_render(id, payload):
     data = request.get_json()
     
     try:
-        # Validate amount and description
-        if not data.get('amount') or not data.get('description'):
-             return jsonify({'error': 'Amount and Description are required'}), 400
+        render_data = RenderCreate(**data) # Validate with Pydantic
 
         # Generate Correlative
-        count = TreasuryAllocationRender.query.count()
+        # Mejorar para que sea por año y por tipo de documento
+        count = TreasuryAllocationRender.query.count() # This should be smarter
         correlative = f"R-{str(count + 1).zfill(5)}"
 
         new_render = TreasuryAllocationRender(
             transaction_id=id,
             correlative=correlative,
-            amount=data['amount'],
-            description=data['description']
+            amount=render_data.amount,
+            description=render_data.description,
+            cost_center_id=render_data.cost_center_id # Handle cost_center_id
         )
         db.session.add(new_render)
         db.session.flush() # Get ID
 
         # Handle Document if present
-        if 'document' in data and data['document']:
-            doc_data = data['document']
-            if doc_data.get('document_type_id') and doc_data.get('series') and doc_data.get('number'):
-                new_doc = TreasuryRenderDocument(
-                    render_id=new_render.id,
-                    document_type_id=doc_data['document_type_id'],
-                    series=doc_data['series'],
-                    number=doc_data['number'],
-                    issuer_ruc=doc_data.get('issuer_ruc'),
-                    issuer_name=doc_data.get('issuer_name'),
-                    issue_date=datetime.strptime(doc_data['issue_date'], '%Y-%m-%d').date() if doc_data.get('issue_date') else None,
-                    amount=doc_data.get('amount') or 0
-                )
-                db.session.add(new_doc)
+        if render_data.document:
+            doc_data = render_data.document
+            new_doc = TreasuryRenderDocument(
+                render_id=new_render.id,
+                document_type_id=doc_data.document_type_id,
+                series=doc_data.series,
+                number=doc_data.number,
+                issuer_ruc=doc_data.issuer_ruc,
+                issuer_name=doc_data.issuer_name,
+                issue_date=doc_data.issue_date,
+                amount=doc_data.amount or 0
+            )
+            db.session.add(new_doc)
 
         db.session.commit()
         return jsonify(new_render.to_dict()), 201
 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@treasury_api.route('/transactions/<int:id>/finalize', methods=['POST'])
+@requires_auth(required_permission='manage:treasury')
+def finalize_transaction_allocation(id, payload):
+    transaction = TreasuryTransaction.query.get_or_404(id)
+    
+    if transaction.type != 'EGRESO': # Only allocations (expenses) can be finalized
+        return jsonify({'error': 'Only expense transactions (allocations) can be finalized'}), 400
+
+    try:
+        total_renders_amount = db.session.query(func.sum(TreasuryAllocationRender.amount)). \
+            filter_by(transaction_id=id).scalar() or Decimal(0)
+        
+        balance = transaction.amount - total_renders_amount
+        
+        transaction.status = 'Finalizada'
+        db.session.commit()
+        
+        response_data = transaction.to_dict()
+        response_data['final_balance'] = float(balance)
+        response_data['total_rendered'] = float(total_renders_amount)
+        
+        return jsonify(response_data), 200
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
@@ -643,6 +679,50 @@ def delete_render(id, payload):
         db.session.delete(render)
         db.session.commit()
         return jsonify({'message': 'Render deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@treasury_api.route('/renders/<int:id>', methods=['PUT'])
+@requires_auth(required_permission='manage:treasury')
+def update_render(id, payload):
+    render = TreasuryAllocationRender.query.get_or_404(id)
+    data = request.get_json()
+
+    try:
+        render_data = RenderUpdate(**data) # Validate with Pydantic
+
+        if render_data.amount is not None:
+            render.amount = render_data.amount
+        if render_data.description is not None:
+            render.description = render_data.description
+        if render_data.cost_center_id is not None:
+            render.cost_center_id = render_data.cost_center_id
+        
+        # Handle Document Update (if provided, assume replace for simplicity)
+        if render_data.document:
+            if render.document: # Existing document, delete and create new
+                db.session.delete(render.document)
+                db.session.flush()
+
+            doc_data = render_data.document
+            new_doc = TreasuryRenderDocument(
+                render_id=render.id,
+                document_type_id=doc_data.document_type_id,
+                series=doc_data.series,
+                number=doc_data.number,
+                issuer_ruc=doc_data.issuer_ruc,
+                issuer_name=doc_data.issuer_name,
+                issue_date=doc_data.issue_date,
+                amount=doc_data.amount or 0
+            )
+            db.session.add(new_doc)
+        elif render.document and 'document' in data and data['document'] is None: # Explicitly remove document
+             db.session.delete(render.document)
+
+        db.session.commit()
+        return jsonify(render.to_dict()), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400

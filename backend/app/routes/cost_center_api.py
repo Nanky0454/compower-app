@@ -1,11 +1,15 @@
+from datetime import date
+
 from flask import Blueprint, jsonify, request
+
 from ..extensions import db
 from ..models.cost_center import CostCenter # <-- Modelo actualizado
 from ..models.stock_transfer import StockTransfer, StockTransferItem
 from ..models.product_catalog import Product
 from ..services.auth_service import requires_auth
 from ..models.purchase_order import PurchaseOrder, PurchaseOrderItem
-from sqlalchemy import func, cast
+from ..models.exchange_rate import ExchangeRate
+from sqlalchemy import func, cast, case
 from decimal import Decimal
 
 cost_center_api = Blueprint('cost_center_api', __name__) # <-- Blueprint renombrado
@@ -18,6 +22,7 @@ def get_cost_centers_with_budget(payload):
     try:
         # Paso 1: Query de consumo
         print("1. Calculando consumos...")  # LOG 2
+
         consumption_query_st = db.session.query(
             StockTransfer.cost_center_id,
             func.sum(
@@ -36,10 +41,20 @@ def get_cost_centers_with_budget(payload):
         consumption_query_po = db.session.query(
             PurchaseOrder.cost_center_id,
             func.sum(
-                cast(PurchaseOrderItem.quantity, db.Numeric(10, 2)) *
-                cast(PurchaseOrderItem.unit_price, db.Numeric(10, 2))
+                case(
+                    (PurchaseOrder.currency == 'USD',
+                     cast(PurchaseOrderItem.quantity, db.Numeric(10, 2)) *
+                     cast(PurchaseOrderItem.unit_price, db.Numeric(10, 2)) *
+                     func.coalesce(ExchangeRate.buy_rate, 1)), # Use coalesced buy_rate
+                    else_=cast(PurchaseOrderItem.quantity, db.Numeric(10, 2)) *
+                          cast(PurchaseOrderItem.unit_price, db.Numeric(10, 2))
+                )
             )
         ).join(PurchaseOrderItem, PurchaseOrder.id == PurchaseOrderItem.order_id) \
+            .outerjoin(ExchangeRate, db.and_( # LEFT JOIN with ExchangeRate
+                ExchangeRate.currency == 'USD',
+                ExchangeRate.date == db.func.date(PurchaseOrder.created_at)
+            )) \
             .filter(PurchaseOrder.cost_center_id.isnot(None)) \
             .group_by(PurchaseOrder.cost_center_id) \
             .all()
@@ -183,8 +198,27 @@ def get_cost_center_movements(cc_id, payload):
 
         for oc in orders:
             # Calcular total de la orden
-            total = sum(float(i.quantity) * float(i.unit_price) for i in oc.items)
-            print(f"Total de ordenes de compra: {total}")
+            # Fetch exchange rate for this specific order's creation date
+            exchange_rate_usd_obj = ExchangeRate.query.filter_by(
+                currency='USD',
+                date=oc.created_at.date()
+            ).first()
+            usd_to_pen_rate = exchange_rate_usd_obj.buy_rate if exchange_rate_usd_obj else Decimal(1)
+            if not exchange_rate_usd_obj:
+                print(
+                    f"   !!! No se encontró tipo de cambio para USD a PEN para la fecha {oc.created_at.date()}. Se usará 1:1 para el movimiento de OC {oc.id}.")
+
+            total_oc_pen = Decimal(0)
+            for item in oc.items:
+                item_quantity = Decimal(str(item.quantity))
+                item_unit_price = Decimal(str(item.unit_price))
+                item_amount = item_quantity * item_unit_price
+                if oc.currency == 'USD':
+                    total_oc_pen += item_amount
+                else:
+                    total_oc_pen += item_amount
+
+            print(f"Total de ordenes de compra (convertido a PEN): {total_oc_pen}")
             # Determinar fecha (usar issue_date si existe, sino created_at)
             fecha = oc.created_at
             if hasattr(oc, 'issue_date') and oc.issue_date:
@@ -196,8 +230,8 @@ def get_cost_center_movements(cc_id, payload):
                 'doc_number': oc.document_number,
                 'date': fecha.isoformat() if fecha else None,
                 'description': oc.provider.name if oc.provider else "Proveedor Desconocido",
-                'amount': total,
-                'currency': oc.currency
+                'amount': float(total_oc_pen), # Store the converted amount
+                'currency': oc.currency # Keep original currency for display
             })
 
 

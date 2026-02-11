@@ -2,6 +2,7 @@ from ..extensions import db
 from .provider import Provider
 from .employee import Employee
 from .purchase_order import DocumentType
+from .cost_center import CostCenter
 
 class AccountType(db.Model):
     __tablename__ = 'account_types'
@@ -77,7 +78,8 @@ class TreasuryTransaction(db.Model):
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     type = db.Column(db.String(20), nullable=False) # 'INGRESO' or 'EGRESO'
     correlative = db.Column(db.String(20), nullable=True) # Generated correlative (e.g., ING-000001)
-    
+    status = db.Column(db.String(20), nullable=False, default='Pendiente') # NEW
+
     account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id'), nullable=False)
     expense_type_id = db.Column(db.Integer, db.ForeignKey('expense_types.id'), nullable=True)
     income_type_id = db.Column(db.Integer, db.ForeignKey('income_types.id'), nullable=True)
@@ -120,6 +122,7 @@ class TreasuryTransaction(db.Model):
             'amount': float(self.amount),
             'type': self.type,
             'correlative': self.correlative,
+            'status': self.status, # NEW
             'account_id': self.account_id,
             'account_alias': self.account.alias if self.account else None,
             'account_currency': self.account.currency if self.account else 'PEN',
@@ -168,6 +171,7 @@ class TreasuryAllocationRender(db.Model):
     correlative = db.Column(db.String(20), nullable=True) # e.g., R-00001
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     description = db.Column(db.String(255), nullable=False)
+    cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True) # NEW
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     # Relationship to the main transaction (Allocation)
@@ -175,6 +179,9 @@ class TreasuryAllocationRender(db.Model):
     
     # Relationship to the document (optional)
     document = db.relationship('TreasuryRenderDocument', uselist=False, backref='render', cascade='all, delete-orphan')
+    
+    # NEW Relationship to CostCenter
+    cost_center = db.relationship('CostCenter') 
 
     def to_dict(self):
         return {
@@ -183,6 +190,8 @@ class TreasuryAllocationRender(db.Model):
             'correlative': self.correlative,
             'amount': float(self.amount),
             'description': self.description,
+            'cost_center_id': self.cost_center_id, # NEW
+            'cost_center_name': self.cost_center.name if self.cost_center else None, # NEW
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'document': self.document.to_dict() if self.document else None
         }

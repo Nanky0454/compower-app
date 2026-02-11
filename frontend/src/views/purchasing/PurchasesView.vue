@@ -957,7 +957,7 @@ async function handleDelete(order) {
                   <Select v-model="formData.cost_center_id">
                     <SelectTrigger><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="cc in catalogs.cost_centers" :key="cc.id" :value="cc.id">{{ cc.code }} - {{ cc.name }}</SelectItem>
+                      <SelectItem v-for="cc in catalogs.cost_centers" :key="cc.id" :value="cc.id">{{ cc.code }}</SelectItem>
                     </SelectContent>
                   </Select>
                </div>

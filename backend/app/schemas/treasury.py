@@ -54,6 +54,7 @@ class DocumentResponse(BaseModel):
 class TransactionResponse(TransactionBase):
     id: int
     correlative: Optional[str] = None
+    status: str # NEW
     account_alias: Optional[str] = None
     account_currency: Optional[str] = None
     expense_type_name: Optional[str] = None
@@ -62,6 +63,52 @@ class TransactionResponse(TransactionBase):
     document: Optional[DocumentResponse] = None
     user_id: Optional[int] = None
     created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class RenderDocumentCreate(BaseModel):
+    document_type_id: int
+    series: str
+    number: str
+    issuer_ruc: Optional[str] = None
+    issuer_name: Optional[str] = None
+    issue_date: Optional[date] = None
+    amount: Optional[float] = None
+
+class RenderDocumentResponse(BaseModel):
+    id: int
+    document_type_id: int
+    document_type_name: Optional[str] = None
+    series: str
+    number: str
+    issuer_ruc: Optional[str] = None
+    issuer_name: Optional[str] = None
+    issue_date: Optional[date] = None
+    amount: float
+
+class RenderCreate(BaseModel):
+    amount: float
+    description: str
+    cost_center_id: Optional[int] = None
+    document: Optional[RenderDocumentCreate] = None
+
+class RenderUpdate(BaseModel):
+    amount: Optional[float] = None
+    description: Optional[str] = None
+    cost_center_id: Optional[int] = None
+    document: Optional[RenderDocumentCreate] = None
+
+class RenderResponse(BaseModel):
+    id: int
+    transaction_id: int
+    correlative: Optional[str] = None
+    amount: float
+    description: str
+    cost_center_id: Optional[int] = None
+    cost_center_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+    document: Optional[RenderDocumentResponse] = None
 
     class Config:
         from_attributes = True

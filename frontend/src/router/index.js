@@ -208,7 +208,13 @@ const routes = [
         name: 'payment',
         component: () => import ('../views/treasury/PaymentView.vue'),
        meta: { requiresAuth: true, permission: 'view:treasury', title: 'Modulo de Caja'}
-       }
+       },
+    {
+        path: '/treasury/allocations/:id',
+        name: 'treasury-allocation-detail',
+        component: () => import('../views/treasury/AllocationDetailView.vue'),
+        meta: { requiresAuth: true, permission: 'view:treasury', title: 'Detalle de Asignación' }
+    }
     ]
 
 const router = createRouter({

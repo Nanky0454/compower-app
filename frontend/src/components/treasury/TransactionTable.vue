@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router' // Import useRouter
 import {
   Table,
   TableBody,
@@ -11,18 +12,15 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import AllocationRenderModal from './AllocationRenderModal.vue'
 
 const props = defineProps({
   transactions: Array
 })
 
+const router = useRouter() // Initialize router
+
 const selectedDocument = ref(null)
 const isDocumentOpen = ref(false)
-
-// Render Modal State
-const selectedTransactionForRender = ref(null)
-const isRenderModalOpen = ref(false)
 
 function formatCurrency(amount, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', { style: 'currency', currency: currency }).format(amount)
@@ -38,9 +36,8 @@ function viewDocument(doc) {
     isDocumentOpen.value = true
 }
 
-function openRenderModal(transaction) {
-    selectedTransactionForRender.value = transaction
-    isRenderModalOpen.value = true
+function goToAllocationDetail(transactionId) {
+  router.push({ name: 'treasury-allocation-detail', params: { id: transactionId } })
 }
 </script>
 
@@ -57,12 +54,17 @@ function openRenderModal(transaction) {
           <TableHead>Categoría</TableHead>
           <TableHead>Beneficiario</TableHead>
           <TableHead>Documento</TableHead>
-          <TableHead>Acciones</TableHead>
+          <TableHead>Estado</TableHead> <!-- NEW STATUS COLUMN -->
           <TableHead class="text-right">Monto</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="t in transactions" :key="t.id">
+        <TableRow 
+          v-for="t in transactions" 
+          :key="t.id"
+          :class="{'cursor-pointer hover:bg-muted/50': t.type === 'EGRESO' && t.expense_type_name === 'ASIGNACION'}"
+          @click="t.type === 'EGRESO' && t.expense_type_name === 'ASIGNACION' ? goToAllocationDetail(t.id) : null"
+        >
           <TableCell>{{ formatDate(t.date) }}</TableCell>
           <TableCell>{{ t.correlative || '-' }}</TableCell>
           <TableCell>{{ t.description }}</TableCell>
@@ -75,21 +77,19 @@ function openRenderModal(transaction) {
           <TableCell>{{ t.expense_type_name || t.income_type_name || '-' }}</TableCell>
           <TableCell>{{ t.beneficiary_name || '-' }}</TableCell>
           <TableCell>
-            <Button v-if="t.document" variant="outline" size="sm" @click="viewDocument(t.document)">
+            <Button v-if="t.document" variant="outline" size="sm" @click.stop="viewDocument(t.document)">
                 Ver Doc
             </Button>
             <span v-else class="text-gray-400">-</span>
           </TableCell>
-          <TableCell>
-            <!-- Show Rendir button only for EGRESO and ASIGNACION -->
-            <Button 
-                v-if="t.type === 'EGRESO' && t.expense_type_name === 'ASIGNACION'" 
-                variant="secondary" 
-                size="sm" 
-                @click="openRenderModal(t)"
+          <TableCell> <!-- NEW STATUS CELL -->
+            <Badge 
+              v-if="t.type === 'EGRESO' && t.expense_type_name === 'ASIGNACION'"
+              :variant="t.status === 'Finalizada' ? 'default' : 'secondary'"
             >
-                Rendir
-            </Button>
+              {{ t.status }}
+            </Badge>
+            <span v-else>-</span>
           </TableCell>
           <TableCell class="text-right font-medium" :class="t.type === 'INGRESO' ? 'text-green-600' : 'text-red-600'">
             {{ t.type === 'INGRESO' ? '+' : '-' }} {{ formatCurrency(t.amount, t.account_currency) }}
@@ -137,12 +137,5 @@ function openRenderModal(transaction) {
             </div>
         </DialogContent>
     </Dialog>
-
-    <!-- Allocation Render Modal -->
-    <AllocationRenderModal 
-        :open="isRenderModalOpen" 
-        @update:open="isRenderModalOpen = $event"
-        :transaction="selectedTransactionForRender"
-    />
   </div>
 </template>

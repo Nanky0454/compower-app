@@ -27,10 +27,14 @@ const ocMovements = computed(() => movements.value.filter(m => m.type === 'OC' |
 
 
 // --- Formateador de Moneda ---
-const currencyFormatter = new Intl.NumberFormat('es-PE', {
-  style: 'currency',
-  currency: 'PEN',
-})
+const formatCurrency = (amount, currency) => {
+  if (currency === 'USD') {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  } else {
+    // Default to PEN
+    return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(amount)
+  }
+}
 
 // --- Computed para el Gráfico (Barra de Progreso) ---
 const budgetPercentage = computed(() => {
@@ -120,7 +124,7 @@ const dateFormatter = (dateString) => {
                 <TableRow>
                   <TableHead>Documento</TableHead>
                   <TableHead>Site Destino</TableHead>
-                  <TableHead class="text-right">Monto (S/)</TableHead>
+                  <TableHead class="text-right">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -131,7 +135,7 @@ const dateFormatter = (dateString) => {
                   </TableCell>
                   <TableCell class="text-gray-600 text-sm whitespace-normal">{{ item.site }}</TableCell>
                   <TableCell class="text-right font-mono">
-                    {{ currencyFormatter.format(item.amount) }}
+                    {{ formatCurrency(item.amount, item.currency) }}
                   </TableCell>
                 </TableRow>
                 <TableRow v-if="greMovements.length === 0">
@@ -151,7 +155,7 @@ const dateFormatter = (dateString) => {
           </CardHeader>
           <CardContent>
             <div class="text-4xl font-bold">
-              {{ currencyFormatter.format(costCenterData.consumed_budget) }}
+              {{ formatCurrency(costCenterData.consumed_budget, 'PEN') }}
             </div>
             <p class="text-xs text-slate-400 mt-1">
               Incluye Salidas de Almacén y Compras Directas.
@@ -178,7 +182,7 @@ const dateFormatter = (dateString) => {
               {{ budgetPercentage.toFixed(2) }}% Consumido
             </div>
              <div class="text-center mt-4 text-sm font-medium">
-              Presupuesto: {{ currencyFormatter.format(costCenterData.budget) }}
+              Presupuesto: {{ formatCurrency(costCenterData.budget, 'PEN') }}
             </div>
           </CardContent>
         </Card>
@@ -196,7 +200,7 @@ const dateFormatter = (dateString) => {
                 <TableRow>
                   <TableHead>Documento</TableHead>
                   <TableHead>Proveedor</TableHead>
-                  <TableHead class="text-right">Monto (S/)</TableHead>
+                  <TableHead class="text-right">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -207,7 +211,7 @@ const dateFormatter = (dateString) => {
                   </TableCell>
                   <TableCell class="text-gray-600 text-sm whitespace-normal">{{ item.description }}</TableCell>
                   <TableCell class="text-right font-mono">
-                    {{ currencyFormatter.format(item.amount) }}
+                    {{ formatCurrency(item.amount, item.currency) }}
                   </TableCell>
                 </TableRow>
                 <TableRow v-if="ocMovements.length === 0">
