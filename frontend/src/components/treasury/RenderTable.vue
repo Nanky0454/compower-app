@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Pencil, Trash2 } from 'lucide-vue-next'
 
+// eslint-disable-next-line no-unused-vars
 const props = defineProps({
   renders: {
     type: Array,

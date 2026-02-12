@@ -171,7 +171,7 @@ class TreasuryAllocationRender(db.Model):
     correlative = db.Column(db.String(20), nullable=True) # e.g., R-00001
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     description = db.Column(db.String(255), nullable=False)
-    cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True) # NEW
+
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     # Relationship to the main transaction (Allocation)
@@ -181,7 +181,8 @@ class TreasuryAllocationRender(db.Model):
     document = db.relationship('TreasuryRenderDocument', uselist=False, backref='render', cascade='all, delete-orphan')
     
     # NEW Relationship to CostCenter
-    cost_center = db.relationship('CostCenter') 
+    cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
+    cost_center = db.relationship('CostCenter')
 
     def to_dict(self):
         return {
@@ -190,8 +191,8 @@ class TreasuryAllocationRender(db.Model):
             'correlative': self.correlative,
             'amount': float(self.amount),
             'description': self.description,
-            'cost_center_id': self.cost_center_id, # NEW
-            'cost_center_name': self.cost_center.name if self.cost_center else None, # NEW
+            'cost_center_id': self.cost_center_id,
+            'cost_center_name': self.cost_center.code if self.cost_center else 'N/A',
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'document': self.document.to_dict() if self.document else None
         }

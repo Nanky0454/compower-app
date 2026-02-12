@@ -107,6 +107,7 @@ class RenderResponse(BaseModel):
     description: str
     cost_center_id: Optional[int] = None
     cost_center_name: Optional[str] = None
+    cost_center_code: Optional[str] = None
     created_at: Optional[datetime] = None
     document: Optional[RenderDocumentResponse] = None
 

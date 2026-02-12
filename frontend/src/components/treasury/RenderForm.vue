@@ -26,6 +26,7 @@ import { Calendar as CalendarIcon, Search } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { useToast } from '@/components/ui/toast/use-toast'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const props = defineProps({
   isOpen: Boolean,
@@ -103,6 +104,11 @@ watch(rucSearchTerm, (newVal) => {
     selectedProvider.value = null
     form.value.document.issuer_name = ''
   }
+})
+
+const selectedCostCenterCode = computed(() => {
+  const selected = costCenters.value.find(cc => cc.id === form.value.cost_center_id)
+  return selected ? selected.code : 'Selecciona un centro de costo'
 })
 
 // --- Methods ---
@@ -279,7 +285,7 @@ onMounted(() => {
           <Label for="cost_center" class="text-right">Centro de Costo</Label>
           <Select v-model="form.cost_center_id" class="col-span-3">
             <SelectTrigger>
-              <SelectValue placeholder="Selecciona un centro de costo" />
+              <SelectValue>{{ selectedCostCenterCode }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem v-for="cc in costCenters" :key="cc.id" :value="cc.id">

@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from ..extensions import db
 from ..models.treasury import TreasuryTransaction, BankAccount, ExpenseType, IncomeType, Bank, AccountType, TreasuryTransactionDocument, TreasuryAllocationRender, TreasuryRenderDocument
@@ -595,7 +596,7 @@ def search_employees(payload):
 @requires_auth(required_permission='view:treasury')
 def get_transaction_renders(id, payload):
     transaction = TreasuryTransaction.query.get_or_404(id)
-    renders = TreasuryAllocationRender.query.filter_by(transaction_id=id).order_by(TreasuryAllocationRender.created_at.desc()).all()
+    renders = TreasuryAllocationRender.query.options(joinedload(TreasuryAllocationRender.cost_center)).filter_by(transaction_id=id).order_by(TreasuryAllocationRender.created_at.desc()).all()
     return jsonify([RenderResponse.from_orm(r).dict() for r in renders]), 200
 
 @treasury_api.route('/transactions/<int:id>/renders', methods=['POST'])
@@ -607,7 +608,6 @@ def create_transaction_render(id, payload):
     try:
         render_data = RenderCreate(**data) # Validate with Pydantic
 
-        # Generate Correlative
         # Mejorar para que sea por año y por tipo de documento
         count = TreasuryAllocationRender.query.count() # This should be smarter
         correlative = f"R-{str(count + 1).zfill(5)}"
