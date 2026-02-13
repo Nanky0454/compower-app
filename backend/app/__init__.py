@@ -23,6 +23,8 @@ from .models.attendance import AttendanceRecord
 from .models.reception import ProductReceipt, ProductReceiptItem
 # Asegúrate de tener tu modelo ExchangeRate expuesto en tus modelos
 # from .models.exchange_rate import ExchangeRate
+from .models.ubigeo import Ubigeo
+from .models.treasury import AccountType, Bank, BankAccount, ExpenseType, IncomeType, TreasuryTransaction, TreasuryTransactionDocument, TreasuryAllocationRender, TreasuryRenderDocument, TreasuryRenderDetail
 from .services.auth_service import AuthError, requires_auth
 
 # --- INICIALIZAR SCHEDULER (Global) ---
@@ -74,6 +76,8 @@ def create_app(config_class=Config):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
 
+    # TEMPORARY: Verify model loading
+    # print(f"DEBUG: TreasuryRenderDetail model loaded: {TreasuryRenderDetail.__table__}")
     # --- 2. INICIALIZACIÓN DE EXTENSIONES ---
     db.init_app(app)
     migrate = Migrate(app, db)
@@ -148,7 +152,7 @@ def create_app(config_class=Config):
     # --- 5. CREACIÓN DE BASE DE DATOS Y SEEDING ---
     with app.app_context():
         os.makedirs(app.instance_path, exist_ok=True)
-        db.create_all()
+        db.create_all() # Re-enabled db.create_all()
         _seed_database()
 
     return app

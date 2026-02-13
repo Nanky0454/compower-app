@@ -87,17 +87,43 @@ class RenderDocumentResponse(BaseModel):
     issue_date: Optional[date] = None
     amount: float
 
+class TreasuryRenderDetailCreate(BaseModel):
+    date: date
+    provider_id: Optional[int] = None
+    invoice_series: Optional[str] = None
+    invoice_number: Optional[str] = None
+    description: str
+    amount: float
+
+class TreasuryRenderDetailResponse(BaseModel):
+    id: int
+    render_id: int
+    date: date
+    provider_id: Optional[int] = None
+    provider_name: Optional[str] = None
+    invoice_series: Optional[str] = None
+    invoice_number: Optional[str] = None
+    description: str
+    amount: float
+
+    class Config:
+        from_attributes = True
+
 class RenderCreate(BaseModel):
+    correlative: Optional[str] = None
     amount: float
     description: str
     cost_center_id: Optional[int] = None
     document: Optional[RenderDocumentCreate] = None
+    details: Optional[list[TreasuryRenderDetailCreate]] = None
 
 class RenderUpdate(BaseModel):
+    correlative: Optional[str] = None
     amount: Optional[float] = None
     description: Optional[str] = None
     cost_center_id: Optional[int] = None
     document: Optional[RenderDocumentCreate] = None
+    details: Optional[list[TreasuryRenderDetailCreate]] = None
 
 class RenderResponse(BaseModel):
     id: int
@@ -110,6 +136,7 @@ class RenderResponse(BaseModel):
     cost_center_code: Optional[str] = None
     created_at: Optional[datetime] = None
     document: Optional[RenderDocumentResponse] = None
+    details: Optional[list[TreasuryRenderDetailResponse]] = None
 
     class Config:
         from_attributes = True

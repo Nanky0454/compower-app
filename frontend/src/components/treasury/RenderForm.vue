@@ -39,6 +39,7 @@ const { getAccessTokenSilently } = useAuth0()
 const { toast } = useToast()
 
 const form = ref({
+  correlative: '',
   amount: 0,
   description: '',
   cost_center_id: null,
@@ -50,7 +51,8 @@ const form = ref({
     issuer_name: '',
     issue_date: new Date(),
     amount: 0
-  }
+  },
+  details: [] // Initialize details array
 })
 const isLoading = ref(false)
 const costCenters = ref([])
@@ -65,75 +67,132 @@ const dialogTitle = computed(() => (props.renderToEdit ? 'Editar Rendición' : '
 
 // --- Watchers ---
 watch(() => props.isOpen, (newVal) => {
-  if (newVal) {
-    resetForm()
-    if (props.renderToEdit) {
-      // Populate form for editing
-      form.value = {
-        amount: props.renderToEdit.amount,
-        description: props.renderToEdit.description,
-        cost_center_id: props.renderToEdit.cost_center_id,
-        document: props.renderToEdit.document ? { ...props.renderToEdit.document } : {
-          document_type_id: null,
-          series: '',
-          number: '',
-          issuer_ruc: '',
-          issuer_name: '',
-          issue_date: new Date(),
-          amount: 0
+      if (newVal) {
+      resetForm()
+      if (props.renderToEdit) {
+        // Populate form for editing
+        form.value = {
+          correlative: props.renderToEdit.correlative || '',
+          amount: props.renderToEdit.amount,
+          description: props.renderToEdit.description,
+          cost_center_id: props.renderToEdit.cost_center_id,
+          document: props.renderToEdit.document ? { ...props.renderToEdit.document } : {
+            document_type_id: null,
+            series: '',
+            number: '',
+            issuer_ruc: '',
+            issuer_name: '',
+            issue_date: new Date(),
+            amount: 0
+          },
+          details: props.renderToEdit.details ? props.renderToEdit.details.map(d => ({ ...d, date: new Date(d.date) })) : []
         }
-      }
-      if (props.renderToEdit.document) {
-        form.value.document.issue_date = new Date(props.renderToEdit.document.issue_date)
-        isDocumentFormOpen.value = true
-        if (props.renderToEdit.document.issuer_ruc) {
-          selectedProvider.value = {
-            ruc: props.renderToEdit.document.issuer_ruc,
-            name: props.renderToEdit.document.issuer_name
+        if (props.renderToEdit.document) {
+          form.value.document.issue_date = new Date(props.renderToEdit.document.issue_date)
+          isDocumentFormOpen.value = true
+          if (props.renderToEdit.document.issuer_ruc) {
+            selectedProvider.value = {
+              ruc: props.renderToEdit.document.issuer_ruc,
+              name: props.renderToEdit.document.issuer_name
+            }
           }
         }
       }
     }
-  }
-})
-
-watch(rucSearchTerm, (newVal) => {
-  if (newVal.length === 11) { // Assuming RUC is 11 digits
-    searchProviderByRUC(newVal)
-  } else {
-    selectedProvider.value = null
-    form.value.document.issuer_name = ''
-  }
-})
-
-const selectedCostCenterCode = computed(() => {
-  const selected = costCenters.value.find(cc => cc.id === form.value.cost_center_id)
-  return selected ? selected.code : 'Selecciona un centro de costo'
-})
-
-// --- Methods ---
-function resetForm() {
-  form.value = {
-    amount: 0,
-    description: '',
-    cost_center_id: null,
-    document: {
-      document_type_id: null,
-      series: '',
-      number: '',
+  })
+  
+  watch(rucSearchTerm, (newVal) => {
+    if (newVal.length === 11) { // Assuming RUC is 11 digits
+      searchProviderByRUC(newVal)
+    } else {
+      selectedProvider.value = null
+      form.value.document.issuer_name = ''
+    }
+  })
+  
+  const selectedCostCenterCode = computed(() => {
+    const selected = costCenters.value.find(cc => cc.id === form.value.cost_center_id)
+    return selected ? selected.code : 'Selecciona un centro de costo'
+  })
+  
+  // --- Methods ---
+  function addDetailItem() {
+    form.value.details.push({
+      id: null, // Will be set by backend for existing details
+      date: new Date(),
+      provider_id: null,
       issuer_ruc: '',
       issuer_name: '',
-      issue_date: new Date(),
+      invoice_series: '',
+      invoice_number: '',
+      description: '',
       amount: 0
+    })
+  }
+  
+  function removeDetailItem(index) {
+    form.value.details.splice(index, 1)
+  }
+  
+  async function handleDetailProviderSearch(index) {
+    const ruc = form.value.details[index].issuer_ruc.trim()
+    if (ruc.length === 11) {
+      try {
+        const token = await getAccessTokenSilently()
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/lookup-provider/${ruc}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const provider = await response.json()
+          form.value.details[index].provider_id = provider.id
+          form.value.details[index].issuer_name = provider.name
+        } else {
+          form.value.details[index].provider_id = null
+          form.value.details[index].issuer_name = ''
+          toast({
+            title: 'RUC no encontrado',
+            description: 'No se encontró un proveedor con ese RUC para el detalle.',
+            variant: 'warning'
+          })
+        }
+      } catch (error) {
+        console.error('Error searching detail provider by RUC:', error)
+        form.value.details[index].provider_id = null
+        form.value.details[index].issuer_name = ''
+        toast({
+          title: 'Error de conexión',
+          description: 'No se pudo buscar el proveedor por RUC para el detalle.',
+          variant: 'destructive'
+        })
+      }
+    } else {
+      form.value.details[index].provider_id = null
+      form.value.details[index].issuer_name = ''
     }
   }
-  rucSearchTerm.value = ''
-  rucSearchResults.value = []
-  selectedProvider.value = null
-  isDocumentFormOpen.value = false
-}
-
-async function fetchCostCenters() {
+  
+  function resetForm() {
+    form.value = {
+      correlative: '',
+      amount: 0,
+      description: '',
+      cost_center_id: null,
+      document: {
+        document_type_id: null,
+        series: '',
+        number: '',
+        issuer_ruc: '',
+        issuer_name: '',
+        issue_date: new Date(),
+        amount: 0
+      },
+      details: []
+    }
+    rucSearchTerm.value = ''
+    rucSearchResults.value = []
+    selectedProvider.value = null
+    isDocumentFormOpen.value = false
+  }async function fetchCostCenters() {
   try {
     const token = await getAccessTokenSilently()
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/cost-centers/`, { // Assuming this endpoint exists
@@ -210,6 +269,7 @@ async function handleSubmit() {
 
     // Only send document if the form is open and data is present
     const payload = {
+      correlative: form.value.correlative,
       amount: form.value.amount,
       description: form.value.description,
       cost_center_id: form.value.cost_center_id,
@@ -221,7 +281,12 @@ async function handleSubmit() {
         issuer_name: form.value.document.issuer_name,
         issue_date: form.value.document.issue_date ? format(form.value.document.issue_date, 'yyyy-MM-dd') : null,
         amount: form.value.document.amount
-      } : null
+      } : null,
+      details: form.value.details.map(d => ({
+          ...d,
+          date: format(d.date, 'yyyy-MM-dd'),
+          provider_id: d.provider_id || null,
+      }))
     }
 
     const response = await fetch(url, {
@@ -278,6 +343,10 @@ onMounted(() => {
           <Textarea id="description" v-model="form.description" class="col-span-3" required />
         </div>
         <div class="grid grid-cols-4 items-center gap-4">
+          <Label for="correlative" class="text-right">Correlativo</Label>
+          <Input id="correlative" v-model="form.correlative" class="col-span-3" required />
+        </div>
+        <div class="grid grid-cols-4 items-center gap-4">
           <Label for="amount" class="text-right">Monto</Label>
           <Input id="amount" v-model.number="form.amount" type="number" step="0.01" class="col-span-3" required />
         </div>
@@ -295,10 +364,78 @@ onMounted(() => {
           </Select>
         </div>
 
+        <!-- Details Section -->
+        <h4 class="col-span-4 text-md font-semibold mt-4 border-b pb-2">Detalles de Rendición</h4>
+        <div v-for="(detail, index) in form.details" :key="index" class="col-span-4 border p-3 rounded-md mb-2 relative">
+            <Button type="button" variant="destructive" size="icon" class="absolute top-2 right-2 h-6 w-6" @click="removeDetailItem(index)">
+                <XCircle class="w-3 h-3" />
+            </Button>
+            <div class="grid grid-cols-4 items-center gap-4 mb-2">
+                <Label :for="`detail_date_${index}`" class="text-right">Fecha</Label>
+                <Popover class="col-span-3">
+                  <PopoverTrigger as-child>
+                    <Button
+                      variant="outline"
+                      :class="cn(
+                        'w-full justify-start text-left font-normal',
+                        !detail.date && 'text-muted-foreground',
+                      )"
+                    >
+                      <CalendarIcon class="mr-2 h-4 w-4" />
+                      {{ detail.date ? format(detail.date, 'PPP') : 'Selecciona una fecha' }}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent class="w-auto p-0">
+                    <Calendar
+                      v-model="detail.date"
+                      initial-focus
+                    />
+                  </PopoverContent>
+                </Popover>
+            </div>
+            
+            <div class="grid grid-cols-4 items-center gap-4 mb-2">
+                <Label :for="`detail_provider_ruc_${index}`" class="text-right">RUC Proveedor</Label>
+                <div class="col-span-3 flex gap-2">
+                    <Input :id="`detail_provider_ruc_${index}`" v-model="detail.issuer_ruc" placeholder="RUC del proveedor" class="flex-grow" @input="handleDetailProviderSearch(index)" />
+                    <Button type="button" @click="handleDetailProviderSearch(index)" variant="outline" size="icon">
+                        <Search class="w-4 h-4" />
+                    </Button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-4 items-center gap-4 mb-2">
+                <Label :for="`detail_provider_name_${index}`" class="text-right">Razón Social</Label>
+                <Input :id="`detail_provider_name_${index}`" v-model="detail.issuer_name" class="col-span-3" />
+            </div>
+
+            <div class="grid grid-cols-4 items-center gap-4 mb-2">
+                <Label :for="`detail_series_${index}`" class="text-right">Serie Factura</Label>
+                <Input :id="`detail_series_${index}`" v-model="detail.invoice_series" class="col-span-1" />
+                <Label :for="`detail_number_${index}`" class="text-right">Nro Factura</Label>
+                <Input :id="`detail_number_${index}`" v-model="detail.invoice_number" class="col-span-1" />
+            </div>
+
+            <div class="grid grid-cols-4 items-center gap-4 mb-2">
+                <Label :for="`detail_description_${index}`" class="text-right">Descripción</Label>
+                <Textarea :id="`detail_description_${index}`" v-model="detail.description" class="col-span-3" />
+            </div>
+
+            <div class="grid grid-cols-4 items-center gap-4">
+                <Label :for="`detail_amount_${index}`" class="text-right">Monto</Label>
+                <Input :id="`detail_amount_${index}`" v-model.number="detail.amount" type="number" step="0.01" class="col-span-3" />
+            </div>
+        </div>
+        <div class="col-span-4 text-right">
+            <Button type="button" variant="outline" @click="addDetailItem">
+                <PlusCircle class="w-4 h-4 mr-2" /> Agregar Detalle
+            </Button>
+        </div>
+
         <!-- Document Section -->
         <div class="col-span-4 flex items-center mt-4">
             <Checkbox id="hasDocument" v-model:checked="isDocumentFormOpen" />
-            <Label for="hasDocument" class="ml-2">Asociar Documento</Label>
+            <Label for="hasDocument" class="ml-2">Asociar Documento Principal</Label>
         </div>
 
         <template v-if="isDocumentFormOpen">

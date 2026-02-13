@@ -378,9 +378,15 @@ async function handleUpdate() {
             </div>
 
             <div class="flex items-center gap-2">
-                 <span class="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600 border">
-                    {{ formData.order_type }}
-                </span>
+                 <Select v-model="formData.order_type">
+                    <SelectTrigger class="w-[180px] h-8 text-xs">
+                        <SelectValue placeholder="Tipo de Orden" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="OC">Orden de Compra</SelectItem>
+                        <SelectItem value="OS">Orden de Servicio</SelectItem>
+                    </SelectContent>
+                 </Select>
             </div>
         </div>
 

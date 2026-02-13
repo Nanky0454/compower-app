@@ -29,14 +29,14 @@ const balance = computed(() => allocationAmount.value - totalRenderedAmount.valu
 const isFinalized = computed(() => allocation.value && allocation.value.status === 'Finalizada')
 
 const balanceClass = computed(() => {
-  if (balance.value > 0) return 'text-red-500' // Debe
-  if (balance.value < 0) return 'text-green-500' // Haber (sobrante)
+  if (balance.value > 0) return 'text-green-500' //A favor de CP
+  if (balance.value < 0) return 'text-red-500'  //A favor de trabajador
   return 'text-gray-500' // Exacto
 })
 
 const balanceText = computed(() => {
-  if (balance.value > 0) return `Debe ${formatCurrency(balance.value)}`
-  if (balance.value < 0) return `Haber ${formatCurrency(Math.abs(balance.value))}`
+  if (balance.value > 0) return `Saldo a favor de CP: ${formatCurrency(balance.value)}`
+  if (balance.value < 0) return `Saldo a favor de trabajador: ${formatCurrency(Math.abs(balance.value))}`
   return 'Balance Exacto'
 })
 

@@ -180,6 +180,9 @@ class TreasuryAllocationRender(db.Model):
     # Relationship to the document (optional)
     document = db.relationship('TreasuryRenderDocument', uselist=False, backref='render', cascade='all, delete-orphan')
     
+    # Relationship to the rendition details
+    details = db.relationship('TreasuryRenderDetail', backref='render', cascade='all, delete-orphan')
+    
     # NEW Relationship to CostCenter
     cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
     cost_center = db.relationship('CostCenter')
@@ -194,7 +197,8 @@ class TreasuryAllocationRender(db.Model):
             'cost_center_id': self.cost_center_id,
             'cost_center_name': self.cost_center.code if self.cost_center else 'N/A',
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'document': self.document.to_dict() if self.document else None
+            'document': self.document.to_dict() if self.document else None,
+            'details': [detail.to_dict() for detail in self.details]
         }
 
 class TreasuryRenderDocument(db.Model):
@@ -221,5 +225,31 @@ class TreasuryRenderDocument(db.Model):
             'issuer_ruc': self.issuer_ruc,
             'issuer_name': self.issuer_name,
             'issue_date': self.issue_date.isoformat() if self.issue_date else None,
+            'amount': float(self.amount)
+        }
+
+class TreasuryRenderDetail(db.Model):
+    __tablename__ = 'treasury_render_details'
+    id = db.Column(db.Integer, primary_key=True)
+    render_id = db.Column(db.Integer, db.ForeignKey('treasury_allocation_renders.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=True)
+    invoice_series = db.Column(db.String(20), nullable=True)
+    invoice_number = db.Column(db.String(20), nullable=True)
+    description = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+
+    provider = db.relationship('Provider', backref='treasury_render_details')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'render_id': self.render_id,
+            'date': self.date.isoformat() if self.date else None,
+            'provider_id': self.provider_id,
+            'provider_name': self.provider.name if self.provider else None,
+            'invoice_series': self.invoice_series,
+            'invoice_number': self.invoice_number,
+            'description': self.description,
             'amount': float(self.amount)
         }

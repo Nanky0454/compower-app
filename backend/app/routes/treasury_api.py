@@ -163,7 +163,7 @@ def create_transaction(payload):
             beneficiary_provider_id=transaction_data.beneficiary_provider_id,
             beneficiary_employee_id=transaction_data.beneficiary_employee_id,
             beneficiary_account_id=transaction_data.beneficiary_account_id,
-            # user_id will be handled via auth context in future, for now optional or passed
+            user_id=payload['sub'] # Set user_id from auth payload
         )
         
         db.session.add(new_transaction)
@@ -608,13 +608,12 @@ def create_transaction_render(id, payload):
     try:
         render_data = RenderCreate(**data) # Validate with Pydantic
 
-        # Mejorar para que sea por año y por tipo de documento
-        count = TreasuryAllocationRender.query.count() # This should be smarter
-        correlative = f"R-{str(count + 1).zfill(5)}"
+        if not render_data.correlative:
+            return jsonify({'error': 'Correlative for render is required'}), 400
 
         new_render = TreasuryAllocationRender(
             transaction_id=id,
-            correlative=correlative,
+            correlative=render_data.correlative,
             amount=render_data.amount,
             description=render_data.description,
             cost_center_id=render_data.cost_center_id # Handle cost_center_id
@@ -636,6 +635,21 @@ def create_transaction_render(id, payload):
                 amount=doc_data.amount or 0
             )
             db.session.add(new_doc)
+
+        # Handle TreasuryRenderDetails
+        if render_data.details:
+            from ..models.treasury import TreasuryRenderDetail # Import here to avoid circular dependencies
+            for detail_data in render_data.details:
+                new_detail = TreasuryRenderDetail(
+                    render_id=new_render.id,
+                    date=detail_data.date,
+                    provider_id=detail_data.provider_id,
+                    invoice_series=detail_data.invoice_series,
+                    invoice_number=detail_data.invoice_number,
+                    description=detail_data.description,
+                    amount=detail_data.amount
+                )
+                db.session.add(new_detail)
 
         db.session.commit()
         return jsonify(new_render.to_dict()), 201
@@ -686,12 +700,14 @@ def delete_render(id, payload):
 @treasury_api.route('/renders/<int:id>', methods=['PUT'])
 @requires_auth(required_permission='manage:treasury')
 def update_render(id, payload):
-    render = TreasuryAllocationRender.query.get_or_404(id)
+    render = TreasuryAllocationRender.query.options(joinedload(TreasuryAllocationRender.details)).get_or_404(id)
     data = request.get_json()
 
     try:
         render_data = RenderUpdate(**data) # Validate with Pydantic
 
+        if render_data.correlative is not None:
+            render.correlative = render_data.correlative
         if render_data.amount is not None:
             render.amount = render_data.amount
         if render_data.description is not None:
@@ -719,6 +735,42 @@ def update_render(id, payload):
             db.session.add(new_doc)
         elif render.document and 'document' in data and data['document'] is None: # Explicitly remove document
              db.session.delete(render.document)
+
+        # Handle TreasuryRenderDetails updates
+        if render_data.details is not None:
+            from ..models.treasury import TreasuryRenderDetail # Import here to avoid circular dependencies
+
+            existing_details_map = {d.id: d for d in render.details}
+            incoming_detail_ids = set()
+
+            for detail_data in render_data.details:
+                if detail_data.id and detail_data.id in existing_details_map:
+                    # Update existing detail
+                    existing_detail = existing_details_map[detail_data.id]
+                    existing_detail.date = detail_data.date
+                    existing_detail.provider_id = detail_data.provider_id
+                    existing_detail.invoice_series = detail_data.invoice_series
+                    existing_detail.invoice_number = detail_data.invoice_number
+                    existing_detail.description = detail_data.description
+                    existing_detail.amount = detail_data.amount
+                    incoming_detail_ids.add(detail_data.id)
+                else:
+                    # Add new detail
+                    new_detail = TreasuryRenderDetail(
+                        render_id=render.id,
+                        date=detail_data.date,
+                        provider_id=detail_data.provider_id,
+                        invoice_series=detail_data.invoice_series,
+                        invoice_number=detail_data.invoice_number,
+                        description=detail_data.description,
+                        amount=detail_data.amount
+                    )
+                    db.session.add(new_detail)
+            
+            # Delete details not in the incoming data
+            for existing_detail_id, existing_detail in existing_details_map.items():
+                if existing_detail_id not in incoming_detail_ids:
+                    db.session.delete(existing_detail)
 
         db.session.commit()
         return jsonify(render.to_dict()), 200
