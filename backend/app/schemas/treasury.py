@@ -95,6 +95,9 @@ class TreasuryRenderDetailCreate(BaseModel):
     description: str
     amount: float
 
+class TreasuryRenderDetailUpdate(TreasuryRenderDetailCreate):
+    id: Optional[int] = None # Make ID optional for updates (new details might be included)
+
 class TreasuryRenderDetailResponse(BaseModel):
     id: int
     render_id: int
@@ -123,7 +126,7 @@ class RenderUpdate(BaseModel):
     description: Optional[str] = None
     cost_center_id: Optional[int] = None
     document: Optional[RenderDocumentCreate] = None
-    details: Optional[list[TreasuryRenderDetailCreate]] = None
+    details: Optional[list[TreasuryRenderDetailUpdate]] = None
 
 class RenderResponse(BaseModel):
     id: int

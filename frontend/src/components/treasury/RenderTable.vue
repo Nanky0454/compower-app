@@ -1,4 +1,5 @@
 <script setup>
+import { ref } from 'vue'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Pencil, Trash2 } from 'lucide-vue-next'
@@ -48,7 +49,7 @@ function toggleDetails(renderId) {
               <TableCell>{{ render.correlative }}</TableCell>
               <TableCell>{{ render.description }}</TableCell>
               <TableCell>{{ formatCurrency(render.amount) }}</TableCell>
-              <TableCell>{{ render.cost_center_name || 'N/A' }}</TableCell>
+              <TableCell>{{ render.cost_center_code || 'N/A' }}</TableCell>
               <TableCell>{{ new Date(render.created_at).toLocaleDateString() }}</TableCell>
               <TableCell class="text-right">
                 <div class="flex justify-end gap-2">

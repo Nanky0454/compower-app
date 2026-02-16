@@ -5,7 +5,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models.treasury import TreasuryTransaction, BankAccount, ExpenseType, IncomeType, Bank, AccountType, TreasuryTransactionDocument, TreasuryAllocationRender, TreasuryRenderDocument
+from ..models.treasury import TreasuryTransaction, BankAccount, ExpenseType, IncomeType, Bank, AccountType, \
+    TreasuryTransactionDocument, TreasuryAllocationRender, TreasuryRenderDocument, TreasuryRenderDetail
 from ..models.purchase_order import DocumentType
 from ..models.provider import Provider
 from ..models.employee import Employee
@@ -534,20 +535,21 @@ def lookup_provider(ruc, payload):
         data = response.json()
 
         name = data.get('razon_social') or data.get('nombre') or ''
-        
+        address = data.get('direccion') or data.get('domicilio_fiscal') or ''
         # Crear proveedor
         try:
             new_provider = Provider(
                 ruc=data['numero_documento'],
-                name=name
+                name=name,
+                address=address
             )
             # Si tuviera address, se agregaría aquí
-            
+
             db.session.add(new_provider)
             db.session.commit()
-            
+
             return jsonify(new_provider.to_dict())
-            
+
         except Exception as db_err:
             print("Error guardando proveedor:", db_err)
             db.session.rollback()
@@ -596,7 +598,10 @@ def search_employees(payload):
 @requires_auth(required_permission='view:treasury')
 def get_transaction_renders(id, payload):
     transaction = TreasuryTransaction.query.get_or_404(id)
-    renders = TreasuryAllocationRender.query.options(joinedload(TreasuryAllocationRender.cost_center)).filter_by(transaction_id=id).order_by(TreasuryAllocationRender.created_at.desc()).all()
+    renders = TreasuryAllocationRender.query.options(
+        joinedload(TreasuryAllocationRender.cost_center),
+        joinedload(TreasuryAllocationRender.details).joinedload(TreasuryRenderDetail.provider)
+    ).filter_by(transaction_id=id).order_by(TreasuryAllocationRender.created_at.desc()).all()
     return jsonify([RenderResponse.from_orm(r).dict() for r in renders]), 200
 
 @treasury_api.route('/transactions/<int:id>/renders', methods=['POST'])

@@ -187,6 +187,14 @@ class TreasuryAllocationRender(db.Model):
     cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
     cost_center = db.relationship('CostCenter')
 
+    @property
+    def cost_center_name(self):
+        return self.cost_center.name if self.cost_center else None
+
+    @property
+    def cost_center_code(self):
+        return self.cost_center.code if self.cost_center else None
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -195,7 +203,8 @@ class TreasuryAllocationRender(db.Model):
             'amount': float(self.amount),
             'description': self.description,
             'cost_center_id': self.cost_center_id,
-            'cost_center_name': self.cost_center.code if self.cost_center else 'N/A',
+            'cost_center_name': self.cost_center_name,
+            'cost_center_code': self.cost_center_code,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'document': self.document.to_dict() if self.document else None,
             'details': [detail.to_dict() for detail in self.details]
@@ -241,13 +250,17 @@ class TreasuryRenderDetail(db.Model):
 
     provider = db.relationship('Provider', backref='treasury_render_details')
 
+    @property
+    def provider_name(self):
+        return self.provider.name if self.provider else None
+
     def to_dict(self):
         return {
             'id': self.id,
             'render_id': self.render_id,
             'date': self.date.isoformat() if self.date else None,
             'provider_id': self.provider_id,
-            'provider_name': self.provider.name if self.provider else None,
+            'provider_name': self.provider_name,
             'invoice_series': self.invoice_series,
             'invoice_number': self.invoice_number,
             'description': self.description,

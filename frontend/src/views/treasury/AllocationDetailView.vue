@@ -53,6 +53,7 @@ async function fetchAllocationDetails() {
     })
     if (response.ok) {
       allocation.value = await response.json()
+      console.log('fetchAllocationDetails success, allocation:', allocation.value)
     } else {
       toast({
         title: 'Error',
@@ -82,6 +83,7 @@ async function fetchRenders() {
     })
     if (response.ok) {
       renders.value = await response.json()
+      console.log('fetchRenders success, renders:', renders.value)
     } else {
       toast({
         title: 'Error',
@@ -196,6 +198,7 @@ onMounted(() => {
   <div class="p-6 space-y-6 max-w-6xl mx-auto">
     <div v-if="isLoading" class="text-center py-10">Cargando detalles de asignación...</div>
     <div v-else-if="allocation" class="space-y-6">
+
       <!-- Header Section -->
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
@@ -216,7 +219,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Allocation Details and Summary -->
       <Card>
         <CardHeader>
           <CardTitle>Detalles de la Asignación</CardTitle>

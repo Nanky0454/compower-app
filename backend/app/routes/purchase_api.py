@@ -31,7 +31,6 @@ def parse_date(date_string):
 @purchase_api.route('/lookup-provider/<string:ruc>')
 @requires_auth(required_permission='create:purchases')
 def lookup_provider(ruc, payload):
-    # ... (Mismo código de siempre) ...
     provider = Provider.query.filter_by(ruc=ruc).first()
     if provider: return jsonify(provider.to_dict())
     try:

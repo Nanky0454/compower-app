@@ -22,16 +22,17 @@ import {
 } from '@/components/ui/select'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar as CalendarIcon, Search } from 'lucide-vue-next'
+import { Calendar as CalendarIcon, Search, XCircle, PlusCircle, Edit, Trash2 } from 'lucide-vue-next' // Added Trash2 icon for details
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { useToast } from '@/components/ui/toast/use-toast'
-import { Checkbox } from '@/components/ui/checkbox'
+
+import RenderDetailForm from './RenderDetailForm.vue' // New import
 
 const props = defineProps({
   isOpen: Boolean,
   allocationId: Number,
-  renderToEdit: Object // { id, amount, description, cost_center_id, document: { ... } }
+  renderToEdit: Object // { id, amount, description, cost_center_id, details: [...] }
 })
 
 const emit = defineEmits(['update:isOpen', 'render-saved'])
@@ -43,27 +44,24 @@ const form = ref({
   amount: 0,
   description: '',
   cost_center_id: null,
-  document: {
-    document_type_id: null,
-    series: '',
-    number: '',
-    issuer_ruc: '',
-    issuer_name: '',
-    issue_date: new Date(),
-    amount: 0
-  },
   details: [] // Initialize details array
 })
 const isLoading = ref(false)
 const costCenters = ref([])
-const documentTypes = ref([])
-const rucSearchTerm = ref('')
-const rucSearchResults = ref([])
-const selectedProvider = ref(null) // Provider found by RUC search
 
-const isDocumentFormOpen = ref(false)
+// State for RenderDetailForm
+const isDetailFormOpen = ref(false)
+const detailToEdit = ref(null) // Holds the detail object being edited, or null for new
 
 const dialogTitle = computed(() => (props.renderToEdit ? 'Editar Rendición' : 'Nueva Rendición'))
+
+const totalDetailsAmount = computed(() => {
+  return form.value.details.reduce((sum, detail) => sum + (Number(detail.amount) || 0), 0)
+})
+
+watch(totalDetailsAmount, (newVal) => {
+  form.value.amount = newVal
+})
 
 // --- Watchers ---
 watch(() => props.isOpen, (newVal) => {
@@ -76,37 +74,9 @@ watch(() => props.isOpen, (newVal) => {
           amount: props.renderToEdit.amount,
           description: props.renderToEdit.description,
           cost_center_id: props.renderToEdit.cost_center_id,
-          document: props.renderToEdit.document ? { ...props.renderToEdit.document } : {
-            document_type_id: null,
-            series: '',
-            number: '',
-            issuer_ruc: '',
-            issuer_name: '',
-            issue_date: new Date(),
-            amount: 0
-          },
           details: props.renderToEdit.details ? props.renderToEdit.details.map(d => ({ ...d, date: new Date(d.date) })) : []
         }
-        if (props.renderToEdit.document) {
-          form.value.document.issue_date = new Date(props.renderToEdit.document.issue_date)
-          isDocumentFormOpen.value = true
-          if (props.renderToEdit.document.issuer_ruc) {
-            selectedProvider.value = {
-              ruc: props.renderToEdit.document.issuer_ruc,
-              name: props.renderToEdit.document.issuer_name
-            }
-          }
-        }
       }
-    }
-  })
-  
-  watch(rucSearchTerm, (newVal) => {
-    if (newVal.length === 11) { // Assuming RUC is 11 digits
-      searchProviderByRUC(newVal)
-    } else {
-      selectedProvider.value = null
-      form.value.document.issuer_name = ''
     }
   })
   
@@ -116,59 +86,35 @@ watch(() => props.isOpen, (newVal) => {
   })
   
   // --- Methods ---
-  function addDetailItem() {
-    form.value.details.push({
-      id: null, // Will be set by backend for existing details
-      date: new Date(),
-      provider_id: null,
-      issuer_ruc: '',
-      issuer_name: '',
-      invoice_series: '',
-      invoice_number: '',
-      description: '',
-      amount: 0
-    })
+  function openDetailFormForNew() {
+    detailToEdit.value = null // For new detail
+    isDetailFormOpen.value = true
+  }
+
+  function openDetailFormForEdit(detail) {
+    detailToEdit.value = { ...detail } // Clone for editing
+    isDetailFormOpen.value = true
   }
   
   function removeDetailItem(index) {
     form.value.details.splice(index, 1)
   }
-  
-  async function handleDetailProviderSearch(index) {
-    const ruc = form.value.details[index].issuer_ruc.trim()
-    if (ruc.length === 11) {
-      try {
-        const token = await getAccessTokenSilently()
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/lookup-provider/${ruc}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (response.ok) {
-          const provider = await response.json()
-          form.value.details[index].provider_id = provider.id
-          form.value.details[index].issuer_name = provider.name
-        } else {
-          form.value.details[index].provider_id = null
-          form.value.details[index].issuer_name = ''
-          toast({
-            title: 'RUC no encontrado',
-            description: 'No se encontró un proveedor con ese RUC para el detalle.',
-            variant: 'warning'
-          })
+
+  function handleDetailSaved(savedDetail) {
+    if (savedDetail.id) {
+        // Update existing detail
+        const index = form.value.details.findIndex(d => d.id === savedDetail.id)
+        if (index !== -1) {
+            form.value.details[index] = savedDetail
         }
-      } catch (error) {
-        console.error('Error searching detail provider by RUC:', error)
-        form.value.details[index].provider_id = null
-        form.value.details[index].issuer_name = ''
-        toast({
-          title: 'Error de conexión',
-          description: 'No se pudo buscar el proveedor por RUC para el detalle.',
-          variant: 'destructive'
-        })
-      }
     } else {
-      form.value.details[index].provider_id = null
-      form.value.details[index].issuer_name = ''
+        // Add new detail
+        // Assign a temporary ID for client-side tracking if it's a new item without a backend ID yet
+        // In a real app, you might use a UUID or ensure backend assigns IDs upon creation
+        form.value.details.push({ ...savedDetail, id: Date.now() }) 
     }
+    isDetailFormOpen.value = false
+    detailToEdit.value = null // Clear edit state
   }
   
   function resetForm() {
@@ -177,22 +123,11 @@ watch(() => props.isOpen, (newVal) => {
       amount: 0,
       description: '',
       cost_center_id: null,
-      document: {
-        document_type_id: null,
-        series: '',
-        number: '',
-        issuer_ruc: '',
-        issuer_name: '',
-        issue_date: new Date(),
-        amount: 0
-      },
       details: []
     }
-    rucSearchTerm.value = ''
-    rucSearchResults.value = []
-    selectedProvider.value = null
-    isDocumentFormOpen.value = false
-  }async function fetchCostCenters() {
+  }
+
+async function fetchCostCenters() {
   try {
     const token = await getAccessTokenSilently()
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/cost-centers/`, { // Assuming this endpoint exists
@@ -208,57 +143,8 @@ watch(() => props.isOpen, (newVal) => {
   }
 }
 
-async function fetchDocumentTypes() {
-  try {
-    const token = await getAccessTokenSilently()
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/document-types`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    if (response.ok) {
-      documentTypes.value = await response.json()
-    } else {
-      console.error('Error fetching document types:', await response.json())
-    }
-  } catch (error) {
-    console.error('Error fetching document types:', error)
-  }
-}
-
-async function searchProviderByRUC(ruc) {
-  try {
-    const token = await getAccessTokenSilently()
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/lookup-provider/${ruc}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    if (response.ok) {
-      const provider = await response.json()
-      selectedProvider.value = provider
-      form.value.document.issuer_name = provider.name
-      form.value.document.issuer_ruc = provider.ruc
-    } else {
-      selectedProvider.value = null
-      form.value.document.issuer_name = ''
-      form.value.document.issuer_ruc = ruc // Keep RUC if not found, user might type manually
-      toast({
-        title: 'RUC no encontrado',
-        description: 'No se encontró un proveedor con ese RUC. Puedes ingresar el nombre manualmente.',
-        variant: 'warning'
-      })
-    }
-  } catch (error) {
-    console.error('Error searching provider by RUC:', error)
-    selectedProvider.value = null
-    form.value.document.issuer_name = ''
-    form.value.document.issuer_ruc = ruc
-    toast({
-      title: 'Error de conexión',
-      description: 'No se pudo buscar el proveedor por RUC.',
-      variant: 'destructive'
-    })
-  }
-}
-
 async function handleSubmit() {
+  console.log('handleSubmit triggered')
   isLoading.value = true
   try {
     const token = await getAccessTokenSilently()
@@ -267,27 +153,27 @@ async function handleSubmit() {
       : `${import.meta.env.VITE_API_URL}/api/treasury/transactions/${props.allocationId}/renders`
     const method = props.renderToEdit ? 'PUT' : 'POST'
 
-    // Only send document if the form is open and data is present
     const payload = {
       correlative: form.value.correlative,
       amount: form.value.amount,
       description: form.value.description,
       cost_center_id: form.value.cost_center_id,
-      document: isDocumentFormOpen.value ? {
-        document_type_id: form.value.document.document_type_id,
-        series: form.value.document.series,
-        number: form.value.document.number,
-        issuer_ruc: form.value.document.issuer_ruc,
-        issuer_name: form.value.document.issuer_name,
-        issue_date: form.value.document.issue_date ? format(form.value.document.issue_date, 'yyyy-MM-dd') : null,
-        amount: form.value.document.amount
-      } : null,
-      details: form.value.details.map(d => ({
-          ...d,
-          date: format(d.date, 'yyyy-MM-dd'),
-          provider_id: d.provider_id || null,
-      }))
+      document: null, // Document feature removed
+      details: form.value.details.map(d => {
+          const detailPayload = {
+              ...d,
+              date: format(d.date, 'yyyy-MM-dd'),
+              provider_id: d.provider_id || null,
+          };
+          // Remove temporary ID if it was assigned client-side
+          if (typeof detailPayload.id === 'number' && detailPayload.id > 1000000000000) { // Assuming Date.now() IDs are large numbers
+              delete detailPayload.id;
+          }
+          return detailPayload;
+      })
     }
+
+    console.log('Payload:', payload)
 
     const response = await fetch(url, {
       method: method,
@@ -297,6 +183,8 @@ async function handleSubmit() {
       },
       body: JSON.stringify(payload)
     })
+
+    console.log('API response OK:', response.ok)
 
     if (response.ok) {
       emit('render-saved')
@@ -323,13 +211,12 @@ async function handleSubmit() {
 
 onMounted(() => {
   fetchCostCenters()
-  fetchDocumentTypes()
 })
 </script>
 
 <template>
   <Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
-    <DialogContent class="sm:max-w-[700px]">
+    <DialogContent class="sm:max-w-4xl">
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>
@@ -337,22 +224,22 @@ onMounted(() => {
         </DialogDescription>
       </DialogHeader>
 
-      <form @submit.prevent="handleSubmit" class="grid gap-4 py-4">
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="description" class="text-right">Descripción</Label>
-          <Textarea id="description" v-model="form.description" class="col-span-3" required />
+      <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4 py-4">
+        <div class="space-y-2">
+          <Label for="description" class="text-left">Descripción</Label>
+          <Textarea id="description" v-model="form.description" class="w-full" required />
         </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="correlative" class="text-right">Correlativo</Label>
-          <Input id="correlative" v-model="form.correlative" class="col-span-3" required />
+        <div class="space-y-2">
+          <Label for="correlative" class="text-left">Correlativo</Label>
+          <Input id="correlative" v-model="form.correlative" class="w-full" required />
         </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="amount" class="text-right">Monto</Label>
-          <Input id="amount" v-model.number="form.amount" type="number" step="0.01" class="col-span-3" required />
+        <div class="space-y-2">
+          <Label for="amount" class="text-left">Monto</Label>
+          <Input id="amount" v-model.number="form.amount" type="number" step="0.01" class="w-full" required readonly />
         </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="cost_center" class="text-right">Centro de Costo</Label>
-          <Select v-model="form.cost_center_id" class="col-span-3">
+        <div class="space-y-2">
+          <Label for="cost_center" class="text-left">Centro de Costo</Label>
+          <Select v-model="form.cost_center_id" class="w-full">
             <SelectTrigger>
               <SelectValue>{{ selectedCostCenterCode }}</SelectValue>
             </SelectTrigger>
@@ -364,151 +251,32 @@ onMounted(() => {
           </Select>
         </div>
 
+
         <!-- Details Section -->
-        <h4 class="col-span-4 text-md font-semibold mt-4 border-b pb-2">Detalles de Rendición</h4>
-        <div v-for="(detail, index) in form.details" :key="index" class="col-span-4 border p-3 rounded-md mb-2 relative">
-            <Button type="button" variant="destructive" size="icon" class="absolute top-2 right-2 h-6 w-6" @click="removeDetailItem(index)">
-                <XCircle class="w-3 h-3" />
-            </Button>
-            <div class="grid grid-cols-4 items-center gap-4 mb-2">
-                <Label :for="`detail_date_${index}`" class="text-right">Fecha</Label>
-                <Popover class="col-span-3">
-                  <PopoverTrigger as-child>
-                    <Button
-                      variant="outline"
-                      :class="cn(
-                        'w-full justify-start text-left font-normal',
-                        !detail.date && 'text-muted-foreground',
-                      )"
-                    >
-                      <CalendarIcon class="mr-2 h-4 w-4" />
-                      {{ detail.date ? format(detail.date, 'PPP') : 'Selecciona una fecha' }}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent class="w-auto p-0">
-                    <Calendar
-                      v-model="detail.date"
-                      initial-focus
-                    />
-                  </PopoverContent>
-                </Popover>
-            </div>
-            
-            <div class="grid grid-cols-4 items-center gap-4 mb-2">
-                <Label :for="`detail_provider_ruc_${index}`" class="text-right">RUC Proveedor</Label>
-                <div class="col-span-3 flex gap-2">
-                    <Input :id="`detail_provider_ruc_${index}`" v-model="detail.issuer_ruc" placeholder="RUC del proveedor" class="flex-grow" @input="handleDetailProviderSearch(index)" />
-                    <Button type="button" @click="handleDetailProviderSearch(index)" variant="outline" size="icon">
-                        <Search class="w-4 h-4" />
-                    </Button>
+        <div class="col-span-2">
+            <h4 class="text-md font-semibold mt-4 border-b pb-2">Detalles de Rendición</h4>
+            <div v-if="form.details.length" class="space-y-2 mt-2">
+                <div v-for="(detail, index) in form.details" :key="detail.id || index" class="flex items-center justify-between border p-2 rounded-md">
+                    <span>
+                        {{ detail.description }} - {{ detail.amount }}
+                    </span>
+                    <div class="flex gap-2">
+                        <Button variant="ghost" size="sm" @click="openDetailFormForEdit(detail)">
+                            <Edit class="w-4 h-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" @click="removeDetailItem(index)">
+                            <Trash2 class="w-4 h-4" />
+                        </Button>
+                    </div>
                 </div>
             </div>
-
-            <div class="grid grid-cols-4 items-center gap-4 mb-2">
-                <Label :for="`detail_provider_name_${index}`" class="text-right">Razón Social</Label>
-                <Input :id="`detail_provider_name_${index}`" v-model="detail.issuer_name" class="col-span-3" />
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4 mb-2">
-                <Label :for="`detail_series_${index}`" class="text-right">Serie Factura</Label>
-                <Input :id="`detail_series_${index}`" v-model="detail.invoice_series" class="col-span-1" />
-                <Label :for="`detail_number_${index}`" class="text-right">Nro Factura</Label>
-                <Input :id="`detail_number_${index}`" v-model="detail.invoice_number" class="col-span-1" />
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4 mb-2">
-                <Label :for="`detail_description_${index}`" class="text-right">Descripción</Label>
-                <Textarea :id="`detail_description_${index}`" v-model="detail.description" class="col-span-3" />
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label :for="`detail_amount_${index}`" class="text-right">Monto</Label>
-                <Input :id="`detail_amount_${index}`" v-model.number="detail.amount" type="number" step="0.01" class="col-span-3" />
-            </div>
-        </div>
-        <div class="col-span-4 text-right">
-            <Button type="button" variant="outline" @click="addDetailItem">
+            <p v-else class="text-muted-foreground mt-2">No hay detalles agregados.</p>
+            <Button type="button" variant="outline" class="mt-4" @click="openDetailFormForNew">
                 <PlusCircle class="w-4 h-4 mr-2" /> Agregar Detalle
             </Button>
         </div>
-
-        <!-- Document Section -->
-        <div class="col-span-4 flex items-center mt-4">
-            <Checkbox id="hasDocument" v-model:checked="isDocumentFormOpen" />
-            <Label for="hasDocument" class="ml-2">Asociar Documento Principal</Label>
-        </div>
-
-        <template v-if="isDocumentFormOpen">
-            <h4 class="col-span-4 text-md font-semibold mt-4 border-b pb-2">Detalles del Documento</h4>
-            
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label for="doc_type" class="text-right">Tipo Doc.</Label>
-                <Select v-model="form.document.document_type_id" class="col-span-3" :required="isDocumentFormOpen">
-                    <SelectTrigger>
-                        <SelectValue placeholder="Selecciona tipo de documento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem v-for="dt in documentTypes" :key="dt.id" :value="dt.id">
-                            {{ dt.name }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label for="doc_series" class="text-right">Serie</Label>
-                <Input id="doc_series" v-model="form.document.series" class="col-span-1" :required="isDocumentFormOpen" />
-                <Label for="doc_number" class="text-right">Número</Label>
-                <Input id="doc_number" v-model="form.document.number" class="col-span-1" :required="isDocumentFormOpen" />
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label for="issuer_ruc" class="text-right">RUC Emisor</Label>
-                <div class="col-span-3 flex gap-2">
-                    <Input id="issuer_ruc" v-model="rucSearchTerm" placeholder="RUC del emisor" class="flex-grow" :required="isDocumentFormOpen" />
-                    <Button type="button" @click="searchProviderByRUC(rucSearchTerm)" variant="outline" size="icon">
-                        <Search class="w-4 h-4" />
-                    </Button>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label for="issuer_name" class="text-right">Razón Social</Label>
-                <Input id="issuer_name" v-model="form.document.issuer_name" class="col-span-3" :required="isDocumentFormOpen" />
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label for="issue_date" class="text-right">Fecha Emisión</Label>
-                <Popover class="col-span-3">
-                  <PopoverTrigger as-child>
-                    <Button
-                      variant="outline"
-                      :class="cn(
-                        'w-[280px] justify-start text-left font-normal',
-                        !form.document.issue_date && 'text-muted-foreground',
-                      )"
-                      :required="isDocumentFormOpen"
-                    >
-                      <CalendarIcon class="mr-2 h-4 w-4" />
-                      {{ form.document.issue_date ? format(form.document.issue_date, 'PPP') : 'Selecciona una fecha' }}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent class="w-auto p-0">
-                    <Calendar
-                      v-model="form.document.issue_date"
-                      initial-focus
-                    />
-                  </PopoverContent>
-                </Popover>
-            </div>
-
-            <div class="grid grid-cols-4 items-center gap-4">
-                <Label for="doc_amount" class="text-right">Monto Documento</Label>
-                <Input id="doc_amount" v-model.number="form.document.amount" type="number" step="0.01" class="col-span-3" :required="isDocumentFormOpen" />
-            </div>
-        </template>
-
-        <DialogFooter class="mt-4">
+        
+        <DialogFooter class="col-span-2 mt-4">
           <Button type="button" variant="outline" @click="emit('update:isOpen', false)">
             Cancelar
           </Button>
@@ -517,6 +285,12 @@ onMounted(() => {
           </Button>
         </DialogFooter>
       </form>
+
+      <RenderDetailForm 
+        v-model:isOpen="isDetailFormOpen"
+        :detail-to-edit="detailToEdit"
+        @detail-saved="handleDetailSaved"
+      />
     </DialogContent>
   </Dialog>
 </template>
