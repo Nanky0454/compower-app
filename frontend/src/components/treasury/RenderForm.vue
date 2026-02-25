@@ -20,10 +20,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar as CalendarIcon, Search, XCircle, PlusCircle, Edit, Trash2 } from 'lucide-vue-next' // Added Trash2 icon for details
-import { cn } from '@/lib/utils'
+import { PlusCircle, Edit, Trash2 } from 'lucide-vue-next' // Added Trash2 icon for details
 import { format } from 'date-fns'
 import { useToast } from '@/components/ui/toast/use-toast'
 
@@ -162,7 +159,7 @@ async function handleSubmit() {
       details: form.value.details.map(d => {
           const detailPayload = {
               ...d,
-              date: format(d.date, 'yyyy-MM-dd'),
+              date: d.date.getFullYear() + '-' + String(d.date.getMonth() + 1).padStart(2, '0') + '-' + String(d.date.getDate()).padStart(2, '0'),
               provider_id: d.provider_id || null,
           };
           // Remove temporary ID if it was assigned client-side
@@ -261,10 +258,10 @@ onMounted(() => {
                         {{ detail.description }} - {{ detail.amount }}
                     </span>
                     <div class="flex gap-2">
-                        <Button variant="ghost" size="sm" @click="openDetailFormForEdit(detail)">
+                        <Button type="button" variant="ghost" size="sm" @click="openDetailFormForEdit(detail)">
                             <Edit class="w-4 h-4" />
                         </Button>
-                        <Button variant="destructive" size="sm" @click="removeDetailItem(index)">
+                        <Button type="button" variant="destructive" size="sm" @click="removeDetailItem(index)">
                             <Trash2 class="w-4 h-4" />
                         </Button>
                     </div>

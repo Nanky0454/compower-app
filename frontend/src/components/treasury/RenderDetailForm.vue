@@ -10,28 +10,25 @@ import {
   DialogFooter
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui/input' // Keep Input for type="date"
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar as CalendarIcon, Search } from 'lucide-vue-next'
-import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
+import { Search } from 'lucide-vue-next' // Keep Search icon
 import { useToast } from '@/components/ui/toast/use-toast'
 
 const props = defineProps({
   isOpen: Boolean,
-  detailToEdit: Object // { id, date, provider_id, issuer_ruc, issuer_name, invoice_series, invoice_number, description, amount }
+  detailToEdit: Object
 })
 
 const emit = defineEmits(['update:isOpen', 'detail-saved'])
 const { getAccessTokenSilently } = useAuth0()
 const { toast } = useToast()
 
+// Unified state for the form
 const detailForm = ref({
   id: null,
-  date: new Date(),
+  date: new Date().toISOString().split('T')[0], // Store date as YYYY-MM-DD string
   provider_id: null,
   issuer_ruc: '',
   issuer_name: '',
@@ -40,42 +37,42 @@ const detailForm = ref({
   description: '',
   amount: 0
 })
+
 const isLoading = ref(false)
-const rucSearchTerm = ref('') // Used for searching provider by RUC
-const selectedProvider = ref(null) // Provider found by RUC search
-const isDatePopoverOpen = ref(false) // Control for date picker popover
 
 const dialogTitle = computed(() => (props.detailToEdit ? 'Editar Detalle de Rendición' : 'Agregar Detalle de Rendición'))
 
+// Watcher to populate form for editing or reset for new
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
-    resetDetailForm()
     if (props.detailToEdit) {
-      detailForm.value = { ...props.detailToEdit, date: new Date(props.detailToEdit.date) }
-      if (props.detailToEdit.issuer_ruc) {
-        rucSearchTerm.value = props.detailToEdit.issuer_ruc
-        selectedProvider.value = {
-            ruc: props.detailToEdit.issuer_ruc,
-            name: props.detailToEdit.issuer_name
-        }
-      }
+      const d = props.detailToEdit;
+      detailForm.value.id = d.id;
+      detailForm.value.date = d.date ? new Date(d.date).toISOString().split('T')[0] : ''; // Format to YYYY-MM-DD
+      detailForm.value.provider_id = d.provider_id;
+      detailForm.value.issuer_ruc = d.issuer_ruc || '';
+      detailForm.value.issuer_name = d.issuer_name || '';
+      detailForm.value.invoice_series = d.invoice_series || '';
+      detailForm.value.invoice_number = d.invoice_number || '';
+      detailForm.value.description = d.description || '';
+      detailForm.value.amount = d.amount || 0;
+    } else {
+      resetDetailForm();
     }
   }
-})
+});
 
-watch(rucSearchTerm, (newVal) => {
-  if (newVal.length === 11) { // Assuming RUC is 11 digits
-    searchProviderByRUC(newVal)
-  } else {
-    selectedProvider.value = null
-    detailForm.value.issuer_name = ''
+// Watcher for auto-searching RUC
+watch(() => detailForm.value.issuer_ruc, (newVal) => {
+  if (newVal && newVal.length === 11) {
+    searchProviderByRUC();
   }
-})
+});
 
 function resetDetailForm() {
   detailForm.value = {
     id: null,
-    date: new Date(),
+    date: new Date().toISOString().split('T')[0], // Store date as YYYY-MM-DD string
     provider_id: null,
     issuer_ruc: '',
     issuer_name: '',
@@ -84,11 +81,14 @@ function resetDetailForm() {
     description: '',
     amount: 0
   }
-  rucSearchTerm.value = ''
-  selectedProvider.value = null
 }
 
-async function searchProviderByRUC(ruc) {
+async function searchProviderByRUC() {
+  const ruc = detailForm.value.issuer_ruc;
+  if (!ruc || ruc.length !== 11) {
+    toast({ title: 'RUC inválido', description: 'El RUC debe tener 11 dígitos.', variant: 'warning' });
+    return;
+  }
   try {
     const token = await getAccessTokenSilently()
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/lookup-provider/${ruc}`, {
@@ -96,24 +96,17 @@ async function searchProviderByRUC(ruc) {
     })
     if (response.ok) {
       const provider = await response.json()
-      selectedProvider.value = provider
       detailForm.value.provider_id = provider.id
       detailForm.value.issuer_name = provider.name
     } else {
-      selectedProvider.value = null
-      detailForm.value.provider_id = null
-      detailForm.value.issuer_name = ''
       toast({
         title: 'RUC no encontrado',
-        description: 'No se encontró un proveedor con ese RUC.',
+        description: 'Puedes ingresar la Razón Social manualmente.',
         variant: 'warning'
       })
     }
   } catch (error) {
     console.error('Error searching provider by RUC:', error)
-    selectedProvider.value = null
-    detailForm.value.provider_id = null
-    detailForm.value.issuer_name = ''
     toast({
       title: 'Error de conexión',
       description: 'No se pudo buscar el proveedor por RUC.',
@@ -123,7 +116,7 @@ async function searchProviderByRUC(ruc) {
 }
 
 function handleSaveDetail() {
-  emit('detail-saved', { ...detailForm.value, date: format(detailForm.value.date, 'yyyy-MM-dd') })
+  emit('detail-saved', { ...detailForm.value })
   emit('update:isOpen', false)
 }
 </script>
@@ -141,34 +134,14 @@ function handleSaveDetail() {
       <form @submit.prevent="handleSaveDetail" class="grid gap-4 py-4">
         <div>
           <Label for="detail-date" class="text-left">Fecha</Label>
-          <Popover v-model:open="isDatePopoverOpen">
-            <PopoverTrigger as-child>
-              <Button
-                variant="outline"
-                :class="cn(
-                  'w-full justify-start text-left font-normal',
-                  !detailForm.date && 'text-muted-foreground',
-                )"
-                @click.stop
-              >
-                <CalendarIcon class="mr-2 h-4 w-4" />
-                {{ detailForm.date ? format(detailForm.date, 'PPP') : 'Selecciona una fecha' }}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent class="w-auto p-0">
-              <Calendar
-                v-model="detailForm.date"
-                @update:modelValue="isDatePopoverOpen = false"
-              />
-            </PopoverContent>
-          </Popover>
+          <Input id="detail-date" type="date" v-model="detailForm.date" class="w-full" />
         </div>
             
         <div>
             <Label for="detail-provider-ruc" class="text-left">RUC Proveedor</Label>
             <div class="flex gap-2">
-                <Input id="detail-provider-ruc" v-model="rucSearchTerm" placeholder="RUC del proveedor" class="flex-grow" @input="searchProviderByRUC(rucSearchTerm)" />
-                <Button type="button" @click="searchProviderByRUC(rucSearchTerm)" variant="outline" size="icon">
+                <Input id="detail-provider-ruc" v-model="detailForm.issuer_ruc" placeholder="RUC del proveedor" class="flex-grow" />
+                <Button type="button" @click="searchProviderByRUC" variant="outline" size="icon">
                     <Search class="w-4 h-4" />
                 </Button>
             </div>

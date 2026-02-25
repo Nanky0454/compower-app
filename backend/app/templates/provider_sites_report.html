@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Materiales por Proveedor</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #005a9c;
+        }
+        .report-subtitle {
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px;
+            text-align: left;
+        }
+        th {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .site-header {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            font-size: 12px;
+            color: #495057;
+        }
+        .site-total-row td {
+            background-color: #f1f3f5;
+            font-weight: bold;
+            border-top: 2px solid #adb5bd;
+        }
+        .grand-total-row td {
+            background-color: #005a9c;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 10px;
+        }
+        .currency {
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reporte de Materiales Enviados por Site</h1>
+    <div class="report-subtitle">
+        <strong>Proveedor:</strong> {{ provider_name }}
+    </div>
+
+    {% for site in data.sites %}
+        <table>
+            <thead>
+                <tr class="site-header">
+                    <th colspan="5">Site: {{ site.site_name }}</th>
+                </tr>
+                <tr>
+                    <th>Material (Producto)</th>
+                    <th class="text-right">Cantidad</th>
+                    <th class="text-right">Precio Unit.</th>
+                    <th class="text-right">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in site.item_list %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td class="text-right">{{ item.quantity }}</td>
+                    <td class="text-right currency">{{ "S/." if currency == "PEN" else "$" }} {{ "%.2f"|format(item.unit_price) }}</td>
+                    <td class="text-right currency">{{ "S/." if currency == "PEN" else "$" }} {{ "%.2f"|format(item.subtotal) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="site-total-row">
+                    <td colspan="3" class="text-right">Total Site:</td>
+                    <td class="text-right currency">{{ "S/." if currency == "PEN" else "$" }} {{ "%.2f"|format(site.total_site) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    {% endfor %}
+
+    <table>
+        <tr class="grand-total-row">
+            <td colspan="3" class="text-right">TOTAL GENERAL:</td>
+            <td class="text-right currency" style="width: 120px;">{{ "S/." if currency == "PEN" else "$" }} {{ "%.2f"|format(data.grand_total) }}</td>
+        </tr>
+    </table>
+
+</body>
+</html>

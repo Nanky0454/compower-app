@@ -8,15 +8,19 @@ from weasyprint import HTML
 
 # --- IMPORTACIONES DE MODELOS ---
 from ..extensions import db
-from ..models.inventory_models import InventoryTransaction
+from ..models.inventory_models import InventoryTransaction, InventoryStock
 from ..models.product_catalog import Product, UnitMeasure
-# Nuevos modelos para el reporte de costos
 from ..models.cost_center import CostCenter
-from ..models.stock_transfer import StockTransfer
+from ..models.stock_transfer import StockTransfer, StockTransferItem
 from ..models.gre import Gre, GreDetail
+from ..models.reception import ProductReceipt, ProductReceiptItem
+from ..models.provider import Provider
+from ..models.location import Location as Site
+from ..models.warehouse import Warehouse
+
 
 report_api = Blueprint('report_api',
-                       __name__)  # Asegúrate que en __init__.py lo registres con url_prefix='/api/reports'
+                       __name__)
 
 
 # ==========================================
@@ -41,7 +45,7 @@ def get_stock_movement_report():
         Product.sku,
         Product.name,
         Product.unit_measure_id,
-        Product.standard_price,  # Agregamos el costo del producto para cálculos
+        Product.standard_price,
         func.sum(
             case((InventoryTransaction.timestamp < start_date, InventoryTransaction.quantity_change), else_=0)).label(
             'initial_stock'),
@@ -81,7 +85,7 @@ def get_stock_movement_report():
             'stock_final': final_stock,
             'unidad': um_symbol,
             'costo_prom': costo_unitario,
-            'importe': final_stock * costo_unitario  # Calculo simple de valorizado
+            'importe': final_stock * costo_unitario
         })
 
     total_importe = sum(item['importe'] for item in report_data)
@@ -95,9 +99,6 @@ def get_stock_movement_report():
         return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
                          download_name='Stock_Reporte.pdf')
 
-from ..models.reception import ProductReceipt, ProductReceiptItem
-from ..models.stock_transfer import StockTransferItem
-from ..models.inventory_models import InventoryStock
 
 @report_api.route('/item-movement-report', methods=['GET'])
 def get_item_movement_report():
@@ -123,12 +124,9 @@ def get_item_movement_report():
         if not product:
             continue
 
-        # a. Calcular Stock Actual
         current_stock = db.session.query(func.sum(InventoryStock.quantity)).filter_by(product_id=product_id).scalar() or 0
-
         movements = []
 
-        # b. Obtener Entradas (Recepciones)
         entries = db.session.query(ProductReceiptItem, ProductReceipt)\
             .join(ProductReceipt, ProductReceiptItem.receipt_id == ProductReceipt.id)\
             .filter(ProductReceiptItem.product_id == product_id)\
@@ -143,7 +141,6 @@ def get_item_movement_report():
                 'reference': f"Factura: {receipt.invoice_number or 'S/N'}"
             })
 
-        # c. Obtener Salidas (Transferencias)
         exits = db.session.query(StockTransferItem, StockTransfer)\
             .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id)\
             .filter(StockTransferItem.product_id == product_id)\
@@ -161,7 +158,6 @@ def get_item_movement_report():
                 'reference': f"Site: {site_name}"
             })
 
-        # d. Ordenar movimientos por fecha
         movements.sort(key=lambda x: datetime.strptime(x['date'], '%d-%m-%Y'))
 
         report_data.append({
@@ -171,7 +167,6 @@ def get_item_movement_report():
             'movements': movements
         })
 
-    # Renderizar PDF
     html = render_template('item_report_detail.html',
                            data=report_data,
                            start_date=start_date.strftime('%d/%m/%Y'),
@@ -181,7 +176,7 @@ def get_item_movement_report():
                      download_name='Reporte_Detallado_Item.pdf')
 
 # ==========================================
-# REPORTE 2: COSTOS POR PROYECTO (NUEVO)
+# REPORTE 2: COSTOS POR PROYECTO (EXISTENTE)
 # ==========================================
 @report_api.route('/gre-by-cost-center', methods=['GET', 'OPTIONS'])
 @cross_origin()
@@ -189,11 +184,8 @@ def get_gre_by_cost_center():
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        format_type = request.args.get('format', 'json')  # 'json' para pantalla, 'pdf' para descargar
+        format_type = request.args.get('format', 'json')
 
-        print(f"--- 📊 SOLICITUD REPORTE COSTOS ({format_type}): {start_date} a {end_date} ---")
-
-        # 1. Consulta SQL
         query = db.session.query(CostCenter, Gre) \
             .join(StockTransfer, StockTransfer.cost_center_id == CostCenter.id) \
             .join(Gre, and_(
@@ -202,7 +194,6 @@ def get_gre_by_cost_center():
         )) \
             .options(joinedload(Gre.items).joinedload(GreDetail.product))
 
-        # 2. Filtros (Estado y Tipo Remitente)
         query = query.filter(
             and_(
                 StockTransfer.status != 'Anulada',
@@ -211,13 +202,10 @@ def get_gre_by_cost_center():
             )
         )
 
-        # 3. Filtro Fechas
         if start_date and end_date:
             query = query.filter(Gre.fecha_de_emision.between(start_date, end_date))
 
         results = query.order_by(CostCenter.name, Gre.fecha_de_emision.desc()).all()
-
-        # 4. Procesamiento de Datos
         grouped_data = {}
 
         for cc, gre in results:
@@ -237,7 +225,6 @@ def get_gre_by_cost_center():
             for item in gre.items:
                 unit_price = 0
                 if item.product:
-                    # Intenta 'standard_price' (o con 't'), luego 'price', luego 0
                     costo = getattr(item.product, 'standard_price', None)
                     if costo is None:
                         costo = getattr(item.product, 'standart_price', None)
@@ -261,7 +248,6 @@ def get_gre_by_cost_center():
                 'items': items_formatted
             })
 
-        # 5. Calcular Totales para el Reporte (Importante para PDF)
         final_list = []
         grand_total = 0.0
 
@@ -270,11 +256,7 @@ def get_gre_by_cost_center():
             gres_with_totals = []
 
             for gre in cc_val['gres']:
-                gre_total = 0.0
-                for item in gre['items']:
-                    subtotal = item['cantidad'] * item['unit_price']
-                    gre_total += subtotal
-
+                gre_total = sum(item['cantidad'] * item['unit_price'] for item in gre['items'])
                 gre['total_gre'] = gre_total
                 cc_total += gre_total
                 gres_with_totals.append(gre)
@@ -284,23 +266,18 @@ def get_gre_by_cost_center():
             grand_total += cc_total
             final_list.append(cc_val)
 
-        print(f"--- ✅ Datos procesados: {len(final_list)} centros de costo ---")
-
-        # 6. Retorno según formato
         if format_type == 'json':
             return jsonify(final_list)
 
         elif format_type == 'pdf':
             html = render_template(
-                'cost_report.html',  # Nombre del archivo HTML creado en el paso 1
+                'cost_report.html',
                 data=final_list,
                 start_date=start_date,
                 end_date=end_date,
                 grand_total=grand_total
             )
-
             pdf = HTML(string=html).write_pdf()
-
             return send_file(
                 io.BytesIO(pdf),
                 mimetype='application/pdf',
@@ -309,7 +286,106 @@ def get_gre_by_cost_center():
             )
 
     except Exception as e:
-        print(f"❌ ERROR CRÍTICO: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+# =========================================================
+# REPORTE 4: MATERIALES ENVIADOS POR PROVEEDOR Y SITE (NUEVO)
+# =========================================================
+@report_api.route('/provider-sites', methods=['GET'])
+def get_provider_sites_report():
+    provider_id = request.args.get('provider_id')
+    site_ids_str = request.args.get('site_ids')
+    format_type = request.args.get('format', 'json')
+
+    if not provider_id or not site_ids_str:
+        return jsonify(error="Se requiere proveedor y al menos un site."), 400
+
+    try:
+        site_ids = [int(s_id) for s_id in site_ids_str.split(',')]
+    except ValueError:
+        return jsonify(error="IDs de site inválidos."), 400
+
+    provider = Provider.query.get_or_404(provider_id)
+
+    # 1. Get the names of the selected sites from their IDs
+    selected_site_names_query = db.session.query(Site.name).filter(Site.id.in_(site_ids))
+    selected_site_names = [r[0] for r in selected_site_names_query.all()]
+
+    if not selected_site_names:
+        return jsonify({'sites': [], 'grand_total': 0.0}) # Return empty report if no sites found
+
+    # 2. Query transfers by filtering the text field 'destination_external_address'
+    transfers = db.session.query(
+        StockTransferItem.quantity,
+        Product.standard_price.label('unit_price'),
+        Product.name.label('product_name'),
+        StockTransfer.destination_external_address.label('site_name')
+    ).select_from(StockTransferItem)\
+     .join(Product, StockTransferItem.product_id == Product.id)\
+     .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id)\
+     .join(Gre, and_(
+         Gre.serie == StockTransfer.gre_series,
+         cast(Gre.numero, String) == StockTransfer.gre_number
+     ))\
+     .filter(StockTransfer.destination_external_address.in_(selected_site_names))\
+     .filter(StockTransfer.status != 'Anulada')\
+     .filter(Gre.gre_type == 'remitente')\
+     .all()
+
+    report_data = {}
+    grand_total = 0.0
+
+    for item in transfers:
+        site_name = item.site_name
+        if site_name not in report_data:
+            report_data[site_name] = {
+                'site_id': site_name,  # Grouping by name now
+                'site_name': site_name,
+                'item_list': [], # Renamed from 'items' to avoid keyword collision
+                'total_site': 0.0
+            }
+        
+        quantity = float(item.quantity or 0)
+        unit_price = float(item.unit_price or 0)
+        subtotal = quantity * unit_price
+
+        # Aggregate items by product to avoid duplicates in the report
+        existing_item = next((i for i in report_data[site_name]['item_list'] if i['product_name'] == item.product_name), None)
+        if existing_item:
+            existing_item['quantity'] += quantity
+            existing_item['subtotal'] += subtotal
+        else:
+            report_data[site_name]['item_list'].append({
+                'product_name': item.product_name,
+                'quantity': quantity,
+                'unit_price': unit_price,
+                'subtotal': subtotal
+            })
+        
+        report_data[site_name]['total_site'] += subtotal
+        grand_total += subtotal
+        
+    final_data = {
+        'sites': list(report_data.values()),
+        'grand_total': grand_total
+    }
+
+    if format_type == 'json':
+        return jsonify(final_data)
+    
+    elif format_type == 'pdf':
+        html = render_template(
+            'provider_sites_report.html',
+            data=final_data,
+            provider_name=provider.name,
+            currency="PEN"
+        )
+        pdf = HTML(string=html).write_pdf()
+        return send_file(
+            io.BytesIO(pdf),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'Reporte_Proveedor_{provider.name}.pdf'
+        )
+
+    return jsonify(error="Formato no soportado"), 400

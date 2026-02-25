@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 // Componentes UI
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card/index.js'
@@ -12,12 +12,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 // Iconos
-import { Download, Search, Loader2, Printer, FileText, Layers, ChevronsUpDown, X } from 'lucide-vue-next'
+import { Download, Search, Loader2, Printer, FileText, Layers, ChevronsUpDown, X, Building } from 'lucide-vue-next'
 
 const { getAccessTokenSilently } = useAuth0()
 
 // --- ESTADO GENERAL ---
-const activeTab = ref('stock') // 'stock' | 'costos' | 'detailedItem'
+const activeTab = ref('stock') // 'stock' | 'costos' | 'detailedItem' | 'providerReport'
 
 // Fechas por defecto
 const now = new Date()
@@ -55,6 +55,8 @@ onMounted(async () => {
 
     // Cargar Productos
     await fetchAllProducts()
+    // Cargar Proveedores
+    await fetchProviders()
 })
 
 async function generateStockReport(format = 'json') {
@@ -177,9 +179,7 @@ async function fetchAllProducts() {
     }
 }
 
-// --- NUEVA LÓGICA DE SELECCIÓN ROBUSTA ---
 function isProductSelected(productId) {
-    // Usamos '==' para que coincida aunque uno sea string y el otro number
     return detailedFilters.value.selectedProducts.some(id => id == productId)
 }
 
@@ -201,13 +201,11 @@ function removeProductFromSelection(productId) {
     }
 }
 
-// Computed para mostrar los chips abajo
 const selectedProductDetails = computed(() => {
     return allProducts.value.filter(p =>
         detailedFilters.value.selectedProducts.some(id => id == p.id)
     )
 })
-// -------------------------------------------
 
 async function generateDetailedReport() {
     if (detailedFilters.value.selectedProducts.length === 0) {
@@ -247,6 +245,139 @@ async function generateDetailedReport() {
         alert("Error: " + e.message)
     } finally {
         isLoadingDetailed.value = false
+    }
+}
+
+// =========================================================
+// LÓGICA TAB 4: REPORTE POR PROVEEDOR Y SITE
+// =========================================================
+const providers = ref([])
+const sites = ref([])
+const providerReportData = ref(null)
+const isLoadingProviderReport = ref(false)
+
+const providerFilters = ref({
+  provider_id: null,
+  selectedSites: [],
+  selectAllSites: false
+})
+
+async function fetchProviders() {
+    try {
+        const token = await getAccessTokenSilently()
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/providerslist`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+            providers.value = await response.json()
+        }
+    } catch (e) {
+        console.error("Error cargando proveedores:", e)
+    }
+}
+
+async function fetchSites(providerId) {
+    if (!providerId) {
+        sites.value = []
+        return
+    }
+    try {
+        const token = await getAccessTokenSilently()
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/locations?provider_id=${providerId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+            sites.value = await response.json()
+        } else {
+            sites.value = []
+        }
+    } catch (e) {
+        console.error("Error cargando sites:", e)
+        sites.value = []
+    }
+}
+
+watch(() => providerFilters.value.provider_id, (newProviderId) => {
+    providerFilters.value.selectedSites = []
+    providerFilters.value.selectAllSites = false
+    providerReportData.value = null
+    fetchSites(newProviderId)
+})
+
+watch(() => providerFilters.value.selectAllSites, (selectAll) => {
+    if (selectAll) {
+        providerFilters.value.selectedSites = sites.value.map(s => s.id)
+    } else {
+        // This is tricky. If they uncheck it, should it clear all?
+        // Let's assume for now it does, to prevent confusion.
+        if (providerFilters.value.selectedSites.length === sites.value.length) {
+             providerFilters.value.selectedSites = []
+        }
+    }
+})
+
+function toggleSite(siteId) {
+    const index = providerFilters.value.selectedSites.indexOf(siteId)
+    if (index > -1) {
+        providerFilters.value.selectedSites.splice(index, 1)
+    } else {
+        providerFilters.value.selectedSites.push(siteId)
+    }
+
+    // Update the "select all" checkbox state
+    if (providerFilters.value.selectedSites.length === sites.value.length) {
+        providerFilters.value.selectAllSites = true
+    } else {
+        providerFilters.value.selectAllSites = false
+    }
+}
+
+const selectedSitesDetails = computed(() => {
+    return sites.value.filter(s => providerFilters.value.selectedSites.includes(s.id))
+})
+
+async function generateProviderReport(format = 'json') {
+    if (!providerFilters.value.provider_id || providerFilters.value.selectedSites.length === 0) {
+        alert("Por favor, seleccione un proveedor y al menos un site.")
+        return
+    }
+    isLoadingProviderReport.value = true
+    providerReportData.value = null
+
+    try {
+        const token = await getAccessTokenSilently()
+        const params = new URLSearchParams({
+            provider_id: providerFilters.value.provider_id,
+            site_ids: providerFilters.value.selectedSites.join(','),
+            format: format
+        })
+        const url = `${import.meta.env.VITE_API_URL}/api/reports/provider-sites?${params.toString()}`
+
+        const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }})
+
+        if (!response.ok) {
+            const err = await response.json()
+            throw new Error(err.error || 'Error generando el reporte')
+        }
+
+        if (format === 'json') {
+            providerReportData.value = await response.json()
+        } else {
+            const blob = await response.blob()
+            const urlBlob = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = urlBlob
+            a.download = `Reporte_Proveedor_Sites.pdf`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+        }
+
+    } catch (e) {
+        console.error(e)
+        alert("Error: " + e.message)
+    } finally {
+        isLoadingProviderReport.value = false
     }
 }
 
@@ -305,6 +436,14 @@ function getCCTotal(cc) {
                 :class="activeTab === 'detailedItem' ? 'border-primary' : 'border-transparent'"
             >
                 <Printer class="w-4 h-4 mr-2"/> Reporte Detallado por Item
+            </Button>
+             <Button
+                :variant="activeTab === 'providerReport' ? 'secondary' : 'ghost'"
+                @click="activeTab = 'providerReport'"
+                class="rounded-b-none border-b-2"
+                :class="activeTab === 'providerReport' ? 'border-primary' : 'border-transparent'"
+            >
+                <Building class="w-4 h-4 mr-2"/> Reporte por Proveedor
             </Button>
         </div>
 
@@ -384,7 +523,6 @@ function getCCTotal(cc) {
         </div>
 
         <div v-if="activeTab === 'costos'" class="space-y-6 animate-in fade-in">
-
              <Card class="p-4 bg-gray-50/50 border-dashed">
                 <div class="flex flex-wrap gap-4 items-end">
                     <div>
@@ -518,27 +656,12 @@ function getCCTotal(cc) {
                                     @select.prevent
                                     @click="toggleProduct(product)"
                                 >
-                                    <div class="flex items-center space-x-2 w-full py-1 pointer-events-none">
-                                        <DropdownMenuItem
-                                            v-for="product in filteredProducts"
-                                            :key="product.id"
-                                            class="cursor-pointer focus:bg-gray-100"
-                                            @select.prevent
-                                            @click="toggleProduct(product)"
-                                        >
-                                            <div class="flex items-center space-x-2 w-full py-1 pointer-events-none">
-                                                <Checkbox
-                                                    :id="'prod-' + product.id"
-                                                    :checked="isProductSelected(product.id)"
-                                                    :model-value="isProductSelected(product.id)"
-                                                    class="pointer-events-none"
-                                                />
-                                                <label :for="'prod-' + product.id" class="text-xs w-full cursor-pointer">
-                                                    <span class="font-bold text-blue-600 block">{{ product.sku }}</span>
-                                                    <span class="text-gray-700 leading-tight">{{ product.name }}</span>
-                                                </label>
-                                            </div>
-                                        </DropdownMenuItem>
+                                    <div class="flex items-center space-x-2 w-full py-1">
+                                        <Checkbox
+                                            :id="'prod-' + product.id"
+                                            :checked="isProductSelected(product.id)"
+                                            class="pointer-events-none"
+                                        />
                                         <label :for="'prod-' + product.id" class="text-xs w-full cursor-pointer">
                                             <span class="font-bold text-blue-600 block">{{ product.sku }}</span>
                                             <span class="text-gray-700 leading-tight">{{ product.name }}</span>
@@ -598,8 +721,119 @@ function getCCTotal(cc) {
                     <Search class="h-8 w-8 opacity-20" />
                     <p class="text-sm">Selecciona productos en el buscador superior para verlos aquí.</p>
                 </div>
-
             </div>
+        </div>
+
+        <div v-if="activeTab === 'providerReport'" class="space-y-4 animate-in fade-in">
+             <Card class="p-4 bg-gray-50/50 border-dashed">
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div class="w-72">
+                        <label class="text-xs font-bold text-gray-500 mb-1 block">Proveedor</label>
+                        <Select v-model="providerFilters.provider_id">
+                            <SelectTrigger class="bg-white">
+                                <SelectValue placeholder="Seleccione un proveedor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem v-for="p in providers" :key="p.id" :value="p.id">
+                                    {{ p.name }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                     <div class="w-96">
+                        <label class="text-xs font-bold text-gray-500 mb-1 block">Sites</label>
+                         <DropdownMenu>
+                            <DropdownMenuTrigger as-child :disabled="!providerFilters.provider_id">
+                              <Button variant="outline" class="w-full justify-between bg-white text-left font-normal">
+                                <span class="truncate">
+                                    {{ providerFilters.selectedSites.length > 0
+                                        ? `${providerFilters.selectedSites.length} de ${sites.length} seleccionado(s)`
+                                        : 'Seleccionar sites...'
+                                    }}
+                                </span>
+                                <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent class="w-96 max-h-80 overflow-y-auto" align="start">
+                                 <DropdownMenuItem @select.prevent class="sticky top-0 bg-white z-10 border-b">
+                                    <div class="flex items-center space-x-2 w-full py-1">
+                                        <Checkbox id="select-all-sites" v-model="providerFilters.selectAllSites" />
+                                        <label for="select-all-sites" class="font-bold text-xs">Seleccionar Todos</label>
+                                    </div>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    v-for="site in sites"
+                                    :key="site.id"
+                                    class="cursor-pointer"
+                                    @select.prevent
+                                    @click="toggleSite(site.id)"
+                                >
+                                    <div class="flex items-center space-x-2 w-full py-1">
+                                        <Checkbox :checked="providerFilters.selectedSites.includes(site.id)" />
+                                        <label class="text-xs w-full cursor-pointer">{{ site.name }}</label>
+                                    </div>
+                                </DropdownMenuItem>
+                                <div v-if="sites.length === 0" class="p-2 text-xs text-center text-gray-400">
+                                    Este proveedor no tiene sites.
+                                </div>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+
+                    <div class="flex gap-2 ml-auto">
+                        <Button @click="generateProviderReport('json')" :disabled="isLoadingProviderReport || providerFilters.selectedSites.length === 0">
+                            <Loader2 v-if="isLoadingProviderReport" class="mr-2 h-4 w-4 animate-spin" />
+                            <Search v-else class="mr-2 h-4 w-4" /> Consultar
+                        </Button>
+                        <Button variant="outline" @click="generateProviderReport('pdf')" :disabled="isLoadingProviderReport || providerFilters.selectedSites.length === 0">
+                            <Download class="mr-2 h-4 w-4" /> PDF
+                        </Button>
+                    </div>
+                </div>
+            </Card>
+
+            <Card v-if="providerReportData">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Site</TableHead>
+                            <TableHead>Material</TableHead>
+                            <TableHead class="text-right">Cantidad</TableHead>
+                            <TableHead class="text-right">Precio</TableHead>
+                            <TableHead class="text-right">Subtotal</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <template v-for="site in providerReportData.sites" :key="site.site_id">
+                            <TableRow v-for="(item, index) in site.item_list" :key="item.product_id">
+                                <TableCell v-if="index === 0" :rowspan="site.item_list.length" class="font-bold align-top border-r">
+                                    {{ site.site_name }}
+                                </TableCell>
+                                <TableCell>{{ item.product_name }}</TableCell>
+                                <TableCell class="text-right">{{ item.quantity }}</TableCell>
+                                <TableCell class="text-right">{{ formatCurrency(item.unit_price) }}</TableCell>
+                                <TableCell class="text-right">{{ formatCurrency(item.subtotal) }}</TableCell>
+                            </TableRow>
+                             <TableRow class="bg-gray-50 font-bold">
+                                <TableCell colspan="4" class="text-right">Total Site {{ site.site_name }}:</TableCell>
+                                <TableCell class="text-right">{{ formatCurrency(site.total_site) }}</TableCell>
+                            </TableRow>
+                        </template>
+                        <TableRow class="bg-blue-100 font-extrabold text-blue-800">
+                            <TableCell colspan="4" class="text-right">TOTAL GENERAL:</TableCell>
+                            <TableCell class="text-right">{{ formatCurrency(providerReportData.grand_total) }}</TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </Card>
+             <div v-else-if="!isLoadingProviderReport" class="text-center py-10 text-gray-400 border-2 border-dashed rounded-lg">
+                <p v-if="!providerFilters.provider_id">Seleccione un proveedor para empezar.</p>
+                <p v-else-if="sites.length > 0 && providerFilters.selectedSites.length === 0">Seleccione uno o más sites y presione "Consultar".</p>
+                <p v-else-if="sites.length === 0">El proveedor seleccionado no tiene sites asociados.</p>
+                <p v-else>Presione "Consultar" para ver el reporte.</p>
+            </div>
+
 
         </div>
 

@@ -13,3 +13,5 @@ dist/
 CDR/
 PDF/
 XML FIRMADO/
+Caddyfile
+Dockerfile
