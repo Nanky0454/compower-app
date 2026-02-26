@@ -254,7 +254,22 @@ async function loadCatalogs() {
     if (res.ok) catalogs.value = await res.json()
   } catch (e) { console.error(e) }
 }
+//------------------------------------
+function addIncludeLine() {
+  formData.service_includes.push({ text: '' })
+}
+function removeIncludeLine(index) {
+  formData.service_includes.splice(index, 1)
+}
 
+// NUEVO: Formateador en tiempo real (Primera mayúscula, resto minúscula)
+function formatIncludeText(index) {
+  const val = formData.service_includes[index].text;
+  if (val) {
+    formData.service_includes[index].text = val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+  }
+}
+//------------------------------------
 async function fetchNextCorrelative() {
   if (!correlativeSeries.value || correlativeSeries.value.length < 3) return
   isFetchingCorrelative.value = true
@@ -352,14 +367,6 @@ function removeOSItem(groupIndex, itemIndex) {
 }
 function getGroupTotal(group) {
   return group.items.reduce((acc, item) => acc + (parseFloat(item.quantity || 0) * parseFloat(item.unit_price || 0)), 0)
-}
-
-// --- GESTIÓN DE "INCLUYE" ---
-function addIncludeLine() {
-  formData.service_includes.push({ text: '' })
-}
-function removeIncludeLine(index) {
-  formData.service_includes.splice(index, 1)
 }
 
 // --- GESTIÓN DE "CONDICIONES COMERCIALES" ---
@@ -913,7 +920,11 @@ async function handleDelete(order) {
                 <CardContent class="p-2 space-y-1 bg-gray-50">
                    <div v-for="(inc, idx) in formData.service_includes" :key="idx" class="flex items-center gap-2">
                       <div class="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0"></div>
-                      <Input v-model="inc.text" placeholder="Ej: Recojo y devolución de llaves..." class="h-7 text-xs bg-white border-gray-200" />
+                      <Input
+                          v-model="inc.text"
+                          @input="formatIncludeText(idx)"
+                          placeholder="Ej: Recojo y devolución de llaves..."
+                          class="h-7 text-xs bg-white border-gray-200" />
                       <Button variant="ghost" size="icon" class="h-6 w-6 text-gray-300 hover:text-red-400" @click="removeIncludeLine(idx)">
                          <Trash2 class="w-3 h-3"/>
                       </Button>

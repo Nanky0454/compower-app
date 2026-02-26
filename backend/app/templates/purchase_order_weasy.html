@@ -2,175 +2,122 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+
+    {% set total_lineas = 0 %}
+    {% if alcance is mapping and alcance['groups'] %}
+        {% for group in alcance['groups'] %}
+            {% set total_lineas = total_lineas + group['items']|length %}
+        {% endfor %}
+    {% elif items %}
+        {% set total_lineas = items|length %}
+    {% endif %}
+
     <style>
         @page {
             size: A4;
-            /* Margen inferior reservado para el footer fijo (3.2cm) */
-            margin: 0.4cm 0.8cm 2cm 0.8cm;
+            /* Se reducen los márgenes superior e inferior para ganar espacio vital */
+            margin: 0.5cm 0.8cm 0.5cm 0.8cm;
         }
 
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 8pt;
-            line-height: 1.1;
+            font-size: 8.5pt;
+            line-height: 1.2;
             color: #000;
         }
 
         /* --- CABECERA --- */
         .top-header { width: 100%; margin-bottom: 5px; border-collapse: collapse; }
-        .top-header td { vertical-align: top; }
-        .logo-img { width: 110px; height: auto; }
+        .top-header td { vertical-align: middle; }
+        .logo-img { width: 120px; height: auto; margin-bottom: 3px;}
 
-        .company-info { text-align: center; padding-top: 5px; }
-        .company-name { font-size: 10pt; font-weight: bold; }
-        .company-ruc { font-size: 9pt; font-weight: bold; }
-        .company-addr { font-size: 6pt; margin-top: 2px; }
+        .company-name { font-size: 8.5pt; font-weight: bold; }
+        .company-ruc { font-size: 8pt; font-weight: bold; margin-top: 1px;}
 
-        .reg-box {
-            border: 1px solid #000;
-            border-collapse: collapse;
-            text-align: center;
-            width: 100%;
-            font-size: 6.5pt;
-        }
+        .order-title { font-size: 13pt; font-weight: bold; margin: 0; text-transform: uppercase;}
+
+        .reg-box { border: 1px solid #000; border-collapse: collapse; text-align: center; width: 100%; font-size: 7pt; }
         .reg-box td { border: 1px solid #000; padding: 2px; }
         .reg-title { background: #eee; font-weight: bold; }
         .reg-content { padding: 3px !important; font-size: 7.5pt; font-weight: bold; }
 
         /* --- DATOS GENERALES --- */
-        .grid-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 7pt;
-            margin-bottom: 5px;
-        }
-        .grid-table td {
-            border: 1px solid #000;
-            padding: 2px 3px;
-            vertical-align: middle;
-        }
-        .bg-blue-50 { background-color: #e0e0e0; font-weight: bold; width: 70px; }
-        .bg-blue-50-sm { background-color: #e0e0e0; font-weight: bold; width: 50px; }
+        .grid-table { width: 100%; border-collapse: collapse; font-size: 7.5pt; margin-bottom: 5px; }
+        .grid-table td { border: 1px solid #000; padding: 3px 4px; vertical-align: middle; }
+
+        /* Nuevas clases para las etiquetas de la tabla general */
+        .lbl-cell { background-color: #e0e0e0; font-weight: bold; width: 13%; }
+        .lbl-cell-sm { background-color: #e0e0e0; font-weight: bold; width: 10%; }
 
         /* --- TABLA DE ITEMS --- */
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 6.5pt;
-        }
-        .items-table th {
-            background-color: #555;
-            color: #fff;
-            border: 1px solid #000;
-            padding: 2px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 6.5pt;
-        }
-        .items-table td {
-            border: 1px solid #000;
-            padding: 2px;
-            vertical-align: top;
-        }
+        .items-table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
+        .items-table th { background-color: #555; color: #fff; border: 1px solid #000; padding: 4px; text-align: center; font-weight: bold; font-size: 7.5pt; }
+        .items-table td { border: 1px solid #000; padding: 3px; vertical-align: top; }
 
-        /* Columnas */
         .w-item { width: 5%; text-align: center; }
         .w-desc { width: 49%; text-align: justify; }
         .w-und  { width: 6%; text-align: center; }
         .w-num  { width: 8%; text-align: right; }
         .w-money { width: 8%; text-align: right; }
 
-        .group-row td {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            font-size: 6.5pt;
-            padding: 2px;
-            border-bottom: 1px double #000;
-        }
+        .group-row td { background-color: #f2f2f2; font-weight: bold; padding: 3px; border-bottom: 1px double #000; }
 
         /* --- TOTALES --- */
-        .totals-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 7.5pt;
-            margin-top: -1px;
-        }
-        .totals-table td {
-            border: 1px solid #000;
-            text-align: right;
-            padding: 2px 4px;
-        }
+        .totals-table { width: 100%; border-collapse: collapse; font-size: 8pt; margin-top: -1px; }
+        .totals-table td { border: 1px solid #000; text-align: right; padding: 3px 6px; }
         .lbl { background-color: #e0e0e0; font-weight: bold; }
 
-        /* --- NOTAS --- */
-        .notes-section {
-            margin-top: 5px;
-            font-size: 6pt;
-            page-break-inside: avoid;
-        }
-        .section-box {
-            border: 1px solid #ccc;
-            padding: 3px;
-            margin-bottom: 3px;
-        }
-        .section-title { font-weight: bold; text-decoration: underline; margin-bottom: 1px; }
+        /* --- NOTAS (AHORA EN DOBLE COLUMNA) --- */
+        .notes-container { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 7pt; page-break-inside: avoid;}
+        .notes-container td { vertical-align: top; }
+        .section-box { border: 1px solid #ccc; padding: 4px; height: 100%; }
+        .section-title { font-weight: bold; text-decoration: underline; margin-bottom: 2px; }
+        .conditions-list { margin: 0 0 0 10px; padding: 0; }
+        .conditions-list li { margin-bottom: 1px; }
 
-        .conditions-list {
-            margin: 0 0 0 10px;
-            padding: 0;
-        }
-        .conditions-list li { margin-bottom: 0px; }
-
-        /* --- FOOTER FIJO (FIRMAS) --- */
-        .fixed-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 9cm;
-            padding-top: 2px;
-            background-color: white;
-        }
-
-        .signatures-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 20px 0;
-            margin-top: 0;
-        }
-        .sig-cell {
-            border: 1px solid #000;
-            width: 30%;
-            height: 80px;
-            vertical-align: bottom;
-            text-align: center;
-            padding-bottom: 2px;
-        }
-        .sig-line {
-            border-top: 1px solid #000;
-            width: 80%;
-            margin: 0 auto 2px auto;
-        }
-        .sig-name { font-weight: bold; font-size: 5.5pt; display: block; }
-        .sig-role { font-size: 5pt; display: block; }
+        /* --- FIRMAS (YA NO ES FIXED, FLUYE CON EL DOCUMENTO) --- */
+        .signatures-section { margin-top: 30px; page-break-inside: avoid; width: 100%; }
+        .signatures-table { width: 100%; border-collapse: separate; border-spacing: 20px 0; }
+        .sig-cell { border: 1px solid #000; width: 30%; height: 70px; vertical-align: bottom; text-align: center; padding-bottom: 4px; }
+        .sig-line { border-top: 1px solid #000; width: 80%; margin: 0 auto 2px auto; }
+        .sig-name { font-weight: bold; font-size: 6.5pt; display: block; }
+        .sig-role { font-size: 6pt; display: block; }
 
     </style>
+
+    {% if total_lineas > 5 or condiciones|length > 6 %}
+    <style>
+        body { font-size: 7.5pt; }
+        .grid-table td { padding: 2px 3px; font-size: 7pt;}
+        .items-table th, .items-table td { padding: 2px; font-size: 6.5pt; }
+        .totals-table td { padding: 2px 4px; font-size: 7.5pt;}
+        .notes-container { font-size: 6.5pt; }
+        .section-box { padding: 2px; }
+        .logo-img { width: 100px; }
+        .order-title { font-size: 11pt; }
+        .signatures-section { margin-top: 20px; }
+        .sig-cell { height: 60px; }
+    </style>
+    {% endif %}
+
 </head>
 <body>
 
     <table class="top-header">
         <tr>
-            <td style="width: 20%"><img src="data:image/png;base64,{{ logo_b64 }}" class="logo-img"></td>
-            <td style="width: 55%" class="company-info">
-                <div class="company-name">COMPOWER INGENIERÍA ESPECIALIZADA S.A.C.</div>
+            <td style="width: 30%; text-align: center;">
+                <img src="data:image/png;base64,{{ logo_b64 }}" class="logo-img">
+                <div class="company-name">COMPOWER INGENIERÍA<br>ESPECIALIZADA S.A.C.</div>
                 <div class="company-ruc">RUC: 20522348831</div>
-                <div class="company-addr">CAL. SAN BORJA MZA. 2492 LOTE. 1 INT. 104 OTR. CERCADO DE SURCO</div>
             </td>
-            <td style="width: 25%">
-                <table class="reg-box">
-                    <tr><td class="reg-title">REGISTRO: REG-LOG-004</td></tr>
-                    <tr><td class="reg-content">ORDEN DE COMPRA Y SERVICIOS {{ codigo }}</td></tr>
-                    <tr><td class="reg-title">Versión: 05</td></tr>
+            <td style="width: 40%; text-align: center;">
+                <h2 class="order-title">ORDEN {{ codigo }}</h2>
+            </td>
+            <td style="width: 30%;">
+                <table class="reg-box" style="float: right; width: 90%;">
+                    <tr><td class="reg-title">REGISTRO: REG-LOG-003</td></tr>
+                    <tr><td class="reg-content">Versión: 05</td></tr>
+                    <tr><td class="reg-content">Fecha de validación: {{ fecha_validacion | default('15/01/2026') }}</td></tr>
                 </table>
             </td>
         </tr>
@@ -178,73 +125,68 @@
 
     <table class="grid-table">
         <tr>
-            <td class="bg-blue-50">Señores:</td>
+            <td class="lbl-cell">Señores:</td>
             <td colspan="3">{{ proveedor_nombre }}</td>
-            <td class="bg-blue-50-sm">Referencia:</td>
+            <td class="lbl-cell-sm">Referencia:</td>
             <td>{{ referencia }}</td>
         </tr>
         <tr>
-            <td class="bg-blue-50">Dirección:</td>
+            <td class="lbl-cell">Dirección:</td>
             <td colspan="3">{{ proveedor_direccion }}</td>
-            <td class="bg-blue-50-sm">Atención:</td>
+            <td class="lbl-cell-sm">Atención:</td>
             <td>{{ atencion }}</td>
         </tr>
         <tr>
-            <td class="bg-blue-50">RUC:</td>
-            <td>{{ proveedor_ruc }}</td>
-            <td class="bg-blue-50">C. Costo:</td>
-            <td colspan="3">{{ cc_codigo }}</td>
+            <td class="lbl-cell">RUC:</td>
+            <td style="width: 20%;">{{ proveedor_ruc }}</td>
+            <td class="lbl-cell">C. Costo:</td>
+            <td style="width: 17%;">{{ cc_codigo }}</td>
+            <td class="lbl-cell-sm">Fecha:</td>
+            <td style="width: 17%;">{{ fecha_emision }}</td>
         </tr>
         <tr>
-            <td class="bg-blue-50">Tipo:</td>
+            <td class="lbl-cell">Tipo Doc:</td>
             <td>{{ document_class }}</td>
-            <td class="bg-blue-50">Tel/Email:</td>
-            <td colspan="3" style="font-size: 6pt;">{{ contacto }}</td>
+            <td class="lbl-cell">Tel/Email:</td>
+            <td style="font-size: 7pt;">{{ contacto }}</td>
+            <td class="lbl-cell-sm">Tipo Orden:</td>
+            <td>
+                {% if tipo == 'OC' %}Compra{% endif %}
+                {% if tipo == 'OS' %}Servicio{% endif %}
+            </td>
         </tr>
         <tr>
-            <td class="bg-blue-50">Site / Lugar:</td>
+            <td class="lbl-cell">Site / Lugar:</td>
             <td><strong>{{ site }}</strong></td>
-            <td class="bg-blue-50-sm">Tipo Orden:</td>
-            <td style="vertical-align: middle; padding: 1px;">
-                {% if tipo == 'OC' %}<span>Compra</span>{% endif %}
-                {% if tipo == 'OS' %}<span>Servicio</span>{% endif %}
-            </td>
-            <td class="bg-blue-50-sm">Fecha:</td>
-            <td>{{ fecha_emision }}</td>
+            <td class="lbl-cell">Moneda:</td>
+            <td colspan="3" style="text-transform: uppercase;">{{ moneda | default(simbolo) }}</td>
+        </tr>
+        <tr>
+            <td class="lbl-cell">Elaborado:</td>
+            <td>{{ compower_contacto_nombre | default('Jose Barbachan') | title }}</td>
+            <td class="lbl-cell">Cargo:</td>
+            <td>{{ compower_contacto_cargo | default('Adquisiciones') | title }}</td>
+            <td class="lbl-cell-sm">Teléfono:</td>
+            <td>{{ compower_contacto_numero | default('999 999 999') }}</td>
         </tr>
     </table>
 
-    {% if alcance is mapping and alcance['groups'] %}
-        {% set ns_counter = namespace(total_items=0) %}
-        {% for group in alcance['groups'] %}
-            {% set ns_counter.total_items = ns_counter.total_items + group['items']|length %}
-        {% endfor %}
-
-        {% if ns_counter.total_items < 10 %}
-            <style>
-                .items-table, .items-table th, .group-row td {
-                    font-size: 7.5pt;
-                }
-                .notes-section, .notes-section li, .notes-section div {
-                    font-size: 7pt;
-                }
-                .sig-name { font-size: 6.5pt; }
-                .sig-role { font-size: 6pt; }
-            </style>
-        {% endif %}
-        <table class="items-table">
-            <thead>
-                <tr>
-                    <th class="w-item">ITEM</th>
-                    <th class="w-desc">DESCRIPCIÓN</th>
-                    <th class="w-und">UND</th>
-                    <th class="w-num">CANT</th>
-                    <th class="w-num">P.UNIT</th>
-                    <th class="w-money">SUBTOTAL</th>
-                    <th class="w-money">TOTAL</th>
-                </tr>
-            </thead>
-            <tbody>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th class="w-item">ITEM</th>
+                <th class="w-desc">DESCRIPCIÓN</th>
+                <th class="w-und">UND</th>
+                <th class="w-num">CANT</th>
+                <th class="w-num">P.UNIT</th>
+                {% if alcance is mapping and alcance['groups'] %}
+                <th class="w-money">SUBTOTAL</th>
+                {% endif %}
+                <th class="w-money">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if alcance is mapping and alcance['groups'] %}
                 {% for group in alcance['groups'] %}
                     {% set ns = namespace(group_total=0) %}
                     {% for i in group['items'] %}
@@ -262,7 +204,9 @@
                         <tr>
                             <td class="w-item">{{ group_idx }}.{{ loop.index }}</td>
                             <td class="w-desc">{{ item['invoice_detail_text'] }}</td>
-                            <td class="w-und">{{ item['um'] }}</td><td class="w-num">{{ "%.2f"|format(item['quantity']|float) }}</td>                            {% if item['unit_price'] == 0 %} <td></td>{% endif %}
+                            <td class="w-und">{{ item['um'] }}</td>
+                            <td class="w-num">{{ "%.2f"|format(item['quantity']|float) }}</td>
+                            {% if item['unit_price'] == 0 %} <td></td>{% endif %}
                             {% if item['unit_price'] != 0 %} <td class="w-num">{{ "%.2f"|format(item['unit_price']|float) }}</td> {% endif %}
                             {% if item['unit_price'] == 0 %} <td></td>{% endif %}
                             {% if item['unit_price'] != 0 %} <td class="w-money">{{ "%.2f"|format(item['quantity']|float * item['unit_price']|float) }}</td>{% endif %}
@@ -270,37 +214,11 @@
                         </tr>
                     {% endfor %}
                 {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        {% if items and items|length < 10 %}
-            <style>
-                .items-table, .items-table th {
-                    font-size: 7.5pt;
-                }
-                .notes-section, .notes-section li, .notes-section div {
-                    font-size: 7pt;
-                }
-                .sig-name { font-size: 6.5pt; }
-                .sig-role { font-size: 6pt; }
-            </style>
-        {% endif %}
-        <table class="items-table">
-            <thead>
-                <tr>
-                    <th class="w-item">ITEM</th>
-                    <th style="width: 55%">DESCRIPCIÓN</th>
-                    <th class="w-und">UND</th>
-                    <th class="w-num">CANT</th>
-                    <th class="w-num">P.UNIT</th>
-                    <th class="w-money">TOTAL</th>
-                </tr>
-            </thead>
-            <tbody>
+            {% else %}
                 {% for item in items %}
                 <tr>
                     <td class="w-item">{{ loop.index }}</td>
-                    <td style="width: 55%; text-align: justify;">{{ item.descripcion }}</td>
+                    <td class="w-desc">{{ item.descripcion }}</td>
                     <td class="w-und">{{ item.unidad }}</td>
                     <td class="w-num">{{ "%.2f"|format(item.cantidad) }}</td>
                     {% if item.pu == 0 %}<td></td>{% endif %}
@@ -308,9 +226,9 @@
                     <td class="w-money">{{ "%.2f"|format(item.total) }}</td>
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
+            {% endif %}
+        </tbody>
+    </table>
 
     <table class="totals-table">
         <tr>
@@ -325,7 +243,6 @@
             <td class="lbl">IGV (18%)</td>
             <td>{{ simbolo }} {{ "%.2f"|format(igv) }}</td>
         </tr>
-
         {% else %}
         <tr>
             <td style="border:none;"></td>
@@ -341,61 +258,63 @@
         </tr>
     </table>
 
-
-
-    <div class="fixed-footer">
-            <div class="notes-section">
-            {% if alcance %}
-            <div class="section-box">
-                <div class="section-title">INCLUYE:</div>
-                {% if alcance is mapping and alcance['includes'] %}
-                    <ul style="margin: 0 0 0 10px; padding: 0;">
-                    {% for inc in alcance['includes'] %}
-                        <li>{{ inc['text'] }}</li>
-                    {% endfor %}
-                    </ul>
-                {% else %}
-                    {% if alcance is string %}
-                        <div style="white-space: pre-wrap;">{{ alcance }}</div>
+    <table class="notes-container">
+        <tr>
+            <td style="width: 40%; padding-right: 5px; display: {% if alcance %}table-cell{% else %}none{% endif %};">
+                {% if alcance %}
+                <div class="section-box">
+                    <div class="section-title">INCLUYE:</div>
+                    {% if alcance is mapping and alcance['includes'] %}
+                        <ul class="conditions-list">
+                        {% for inc in alcance['includes'] %}
+                            <li>{{ inc['text'] }}</li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        {% if alcance is string %}
+                            <div style="white-space: pre-wrap;">{{ alcance }}</div>
+                        {% endif %}
                     {% endif %}
+                </div>
                 {% endif %}
-            </div>
-            {% endif %}
+            </td>
 
-            <div class="section-box" style="border: none; padding-left: 0;">
-                <div class="section-title">CONDICIONES COMERCIALES:</div>
-                <ul class="conditions-list">
-                    {% for cond in condiciones %}
-                        <li>
-                            {% if ':' in cond %}
-                                {% set parts = cond.split(':', 1) %}
-                                <strong>{{ parts[0] }}:</strong> {{ parts[1] }}
-                            {% else %}
-                                {{ cond }}
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
+            <td style="width: 60%; padding-left: {% if alcance %}5px{% else %}0{% endif %};">
+                <div class="section-box" style="border: none; padding-top: 0;">
+                    <div class="section-title">CONDICIONES COMERCIALES:</div>
+                    <ul class="conditions-list">
+                        {% for cond in condiciones %}
+                            <li>
+                                {% if ':' in cond %}
+                                    {% set parts = cond.split(':', 1) %}
+                                    <strong>{{ parts[0] }}:</strong> {{ parts[1] }}
+                                {% else %}
+                                    {{ cond }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
 
-            {% if notas_legales %}
-            <div style="margin-top: 5px;">
-                <ul class="conditions-list" style="list-style-type: none; margin: 0; padding: 0;">
-                    {% for nota in notas_legales %}
-                        <li>
-                            {% if ':' in nota %}
-                                {% set parts = nota.split(':', 1) %}
-                                {{ parts[0] }}: {{ parts[1] }}
-                            {% else %}
-                                {{ nota }}
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-        </div>
-        <br>
+                    {% if notas_legales %}
+                    <ul class="conditions-list" style="list-style-type: none; margin-left: 0; margin-top: 5px;">
+                        {% for nota in notas_legales %}
+                            <li>
+                                {% if ':' in nota %}
+                                    {% set parts = nota.split(':', 1) %}
+                                    <strong>{{ parts[0] }}:</strong> {{ parts[1] }}
+                                {% else %}
+                                    {{ nota }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="signatures-section">
         <table class="signatures-table">
             <tr>
                 <td class="sig-cell">
