@@ -227,6 +227,36 @@ def update_transaction(id, payload):
         if update_data.beneficiary_account_id is not None:
             transaction.beneficiary_account_id = update_data.beneficiary_account_id
             
+        # Handle Document Update
+        if 'document' in data and data['document']:
+            doc_data = data['document']
+            if transaction.document:
+                # Update existing
+                transaction.document.document_type_id = doc_data.get('document_type_id') or transaction.document.document_type_id
+                transaction.document.series = doc_data.get('series') or transaction.document.series
+                transaction.document.number = doc_data.get('number') or transaction.document.number
+                transaction.document.issuer_ruc = doc_data.get('issuer_ruc')
+                transaction.document.issuer_name = doc_data.get('issuer_name')
+                if doc_data.get('issue_date'):
+                    transaction.document.issue_date = datetime.strptime(doc_data['issue_date'], '%Y-%m-%d').date()
+                transaction.document.amount = doc_data.get('amount') or 0
+            else:
+                # Create new
+                new_doc = TreasuryTransactionDocument(
+                    transaction_id=transaction.id,
+                    document_type_id=doc_data['document_type_id'],
+                    series=doc_data['series'],
+                    number=doc_data['number'],
+                    issuer_ruc=doc_data.get('issuer_ruc'),
+                    issuer_name=doc_data.get('issuer_name'),
+                    issue_date=datetime.strptime(doc_data['issue_date'], '%Y-%m-%d').date() if doc_data.get('issue_date') else None,
+                    amount=doc_data.get('amount') or 0
+                )
+                db.session.add(new_doc)
+        elif 'document' in data and data['document'] is None and transaction.document:
+            # Delete if explicitly set to null
+            db.session.delete(transaction.document)
+
         db.session.commit()
         return jsonify(transaction.to_dict()), 200
     except Exception as e:

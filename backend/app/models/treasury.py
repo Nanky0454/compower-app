@@ -237,6 +237,7 @@ class TreasuryRenderDocument(db.Model):
             'amount': float(self.amount)
         }
 
+
 class TreasuryRenderDetail(db.Model):
     __tablename__ = 'treasury_render_details'
     id = db.Column(db.Integer, primary_key=True)
@@ -254,6 +255,11 @@ class TreasuryRenderDetail(db.Model):
     def provider_name(self):
         return self.provider.name if self.provider else None
 
+    # --- 1. AÑADE ESTA PROPIEDAD PARA OBTENER EL RUC ---
+    @property
+    def provider_ruc(self):
+        return self.provider.ruc if self.provider else None
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -261,6 +267,10 @@ class TreasuryRenderDetail(db.Model):
             'date': self.date.isoformat() if self.date else None,
             'provider_id': self.provider_id,
             'provider_name': self.provider_name,
+
+            # --- 2. AÑADE ESTA LÍNEA AL DICCIONARIO ---
+            'provider_ruc': self.provider_ruc,
+
             'invoice_series': self.invoice_series,
             'invoice_number': self.invoice_number,
             'description': self.description,

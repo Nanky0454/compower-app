@@ -24,6 +24,31 @@ function formatCurrency(amount, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', { style: 'currency', currency: currency }).format(amount)
 }
 
+function formatDate(dateString) {
+  if (!dateString) return ''
+
+  const str = String(dateString)
+
+  // 1. Extraemos YYYY-MM-DD usando una expresión regular.
+  // Esto captura la fecha ignorando cualquier hora o zona horaria (T00:00:00Z)
+  const match = str.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+
+  if (match) {
+    // Retornamos exactamente lo que mandó la DB (ej: 27/2/2026)
+    // Usamos Number() para quitar ceros a la izquierda y que se vea igual a tu diseño
+    return `${Number(match[3])}/${Number(match[2])}/${match[1]}`
+  }
+
+  // 2. Fallback súper robusto por si la fecha viene en otro formato (como un Timestamp)
+  const date = new Date(str)
+  if (!isNaN(date.getTime())) {
+    // Al forzar timeZone: 'UTC', evitamos que le reste las 5 horas de Perú
+    return date.toLocaleDateString('es-PE', { timeZone: 'UTC' })
+  }
+
+  return str
+}
+
 function toggleDetails(renderId) {
   openDetailsId.value = openDetailsId.value === renderId ? null : renderId
 }
@@ -50,7 +75,7 @@ function toggleDetails(renderId) {
               <TableCell>{{ render.description }}</TableCell>
               <TableCell>{{ formatCurrency(render.amount) }}</TableCell>
               <TableCell>{{ render.cost_center_code || 'N/A' }}</TableCell>
-              <TableCell>{{ new Date(render.created_at).toLocaleDateString() }}</TableCell>
+              <TableCell>{{ formatDate(render.created_at) }}</TableCell>
               <TableCell class="text-right">
                 <div class="flex justify-end gap-2">
                   <Button variant="ghost" size="sm" @click="toggleDetails(render.id)">
@@ -81,7 +106,7 @@ function toggleDetails(renderId) {
                             </TableHeader>
                             <TableBody>
                                 <TableRow v-for="detail in render.details" :key="detail.id">
-                                    <TableCell>{{ new Date(detail.date).toLocaleDateString() }}</TableCell>
+                                    <TableCell>{{ formatDate(detail.date) }}</TableCell>
                                     <TableCell>{{ detail.provider_name || 'N/A' }}</TableCell>
                                     <TableCell>{{ detail.invoice_series || '' }}-{{ detail.invoice_number || '' }}</TableCell>
                                     <TableCell>{{ detail.description }}</TableCell>

@@ -157,9 +157,16 @@ async function handleSubmit() {
       cost_center_id: form.value.cost_center_id,
       document: null, // Document feature removed
       details: form.value.details.map(d => {
+          let dateStr = '';
+          if (d.date instanceof Date) {
+              dateStr = d.date.getFullYear() + '-' + String(d.date.getMonth() + 1).padStart(2, '0') + '-' + String(d.date.getDate()).padStart(2, '0');
+          } else if (typeof d.date === 'string') {
+              dateStr = d.date.split('T')[0]; // Handle ISO strings or already formatted strings
+          }
+          
           const detailPayload = {
               ...d,
-              date: d.date.getFullYear() + '-' + String(d.date.getMonth() + 1).padStart(2, '0') + '-' + String(d.date.getDate()).padStart(2, '0'),
+              date: dateStr,
               provider_id: d.provider_id || null,
           };
           // Remove temporary ID if it was assigned client-side

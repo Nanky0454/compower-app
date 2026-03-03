@@ -12,10 +12,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Pencil, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   transactions: Array
 })
+
+const emit = defineEmits(['edit-transaction', 'delete-transaction'])
 
 const router = useRouter() // Initialize router
 
@@ -28,7 +31,21 @@ function formatCurrency(amount, currency = 'PEN') {
 
 function formatDate(dateString) {
   if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('es-PE')
+  
+  // Normalize string: take only the date part (YYYY-MM-DD)
+  const str = String(dateString)
+  const datePart = str.split(/[T ]/)[0]
+  const parts = datePart.split('-').map(Number)
+  
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const [year, month, day] = parts
+    // new Date(year, monthIndex, day) creates a date in local time
+    const date = new Date(year, month - 1, day)
+    return date.toLocaleDateString('es-PE')
+  }
+  
+  // Fallback for other formats
+  return new Date(str).toLocaleDateString('es-PE')
 }
 
 function viewDocument(doc) {
@@ -56,6 +73,7 @@ function goToAllocationDetail(transactionId) {
           <TableHead>Documento</TableHead>
           <TableHead>Estado</TableHead> <!-- NEW STATUS COLUMN -->
           <TableHead class="text-right">Monto</TableHead>
+          <TableHead class="text-right">Acciones</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -93,6 +111,16 @@ function goToAllocationDetail(transactionId) {
           </TableCell>
           <TableCell class="text-right font-medium" :class="t.type === 'INGRESO' ? 'text-green-600' : 'text-red-600'">
             {{ t.type === 'INGRESO' ? '+' : '-' }} {{ formatCurrency(t.amount, t.account_currency) }}
+          </TableCell>
+          <TableCell class="text-right">
+            <div class="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" @click.stop="emit('edit-transaction', t)">
+                <Pencil class="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" @click.stop="emit('delete-transaction', t.id)">
+                <Trash2 class="h-4 w-4 text-red-500" />
+              </Button>
+            </div>
           </TableCell>
         </TableRow>
         <TableRow v-if="transactions.length === 0">

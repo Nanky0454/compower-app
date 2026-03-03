@@ -6,8 +6,8 @@ from jose import jwt
 from ..extensions import db
 from ..models.role import Role
 # --- Pega tus valores de Auth0 aquí ---
-AUTH0_DOMAIN = 'dev-gforng2dfnavhcdz.us.auth0.com'
-API_IDENTIFIER = 'https://api.appcompower.com' # El Audience
+AUTH0_DOMAIN = 'compower-app.us.auth0.com'
+API_IDENTIFIER = 'https://compower-app.us.auth0.com/api/v2/' # El Audience
 ALGORITHMS = ["RS256"]
 AUTH0_NAMESPACE = 'https://appcompower.com'
 # ------------------------------------

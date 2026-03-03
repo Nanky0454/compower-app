@@ -1,5 +1,5 @@
 <script setup>
-// No script logic needed for static content
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 </script>
 
 <template>

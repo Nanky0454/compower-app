@@ -10,10 +10,10 @@ import {
   DialogFooter
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input' // Keep Input for type="date"
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Search } from 'lucide-vue-next' // Keep Search icon
+import { Search } from 'lucide-vue-next'
 import { useToast } from '@/components/ui/toast/use-toast'
 
 const props = defineProps({
@@ -25,10 +25,9 @@ const emit = defineEmits(['update:isOpen', 'detail-saved'])
 const { getAccessTokenSilently } = useAuth0()
 const { toast } = useToast()
 
-// Unified state for the form
 const detailForm = ref({
   id: null,
-  date: new Date().toISOString().split('T')[0], // Store date as YYYY-MM-DD string
+  date: new Date().toISOString().split('T')[0],
   provider_id: null,
   issuer_ruc: '',
   issuer_name: '',
@@ -42,16 +41,19 @@ const isLoading = ref(false)
 
 const dialogTitle = computed(() => (props.detailToEdit ? 'Editar Detalle de Rendición' : 'Agregar Detalle de Rendición'))
 
-// Watcher to populate form for editing or reset for new
+// Watcher actualizado para mapear correctamente las variables de la Base de Datos
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     if (props.detailToEdit) {
       const d = props.detailToEdit;
       detailForm.value.id = d.id;
-      detailForm.value.date = d.date ? new Date(d.date).toISOString().split('T')[0] : ''; // Format to YYYY-MM-DD
+      detailForm.value.date = d.date ? new Date(d.date).toISOString().split('T')[0] : '';
       detailForm.value.provider_id = d.provider_id;
-      detailForm.value.issuer_ruc = d.issuer_ruc || '';
-      detailForm.value.issuer_name = d.issuer_name || '';
+
+      // SOLUCIÓN: Buscar en las variables locales (issuer_*) o las que vienen de la DB (provider_*)
+      detailForm.value.issuer_ruc = d.issuer_ruc || d.provider_ruc || d.ruc || d.provider?.ruc || '';
+      detailForm.value.issuer_name = d.issuer_name || d.provider_name || d.provider?.name || '';
+
       detailForm.value.invoice_series = d.invoice_series || '';
       detailForm.value.invoice_number = d.invoice_number || '';
       detailForm.value.description = d.description || '';
@@ -62,7 +64,6 @@ watch(() => props.isOpen, (newVal) => {
   }
 });
 
-// Watcher for auto-searching RUC
 watch(() => detailForm.value.issuer_ruc, (newVal) => {
   if (newVal && newVal.length === 11) {
     searchProviderByRUC();
@@ -72,7 +73,7 @@ watch(() => detailForm.value.issuer_ruc, (newVal) => {
 function resetDetailForm() {
   detailForm.value = {
     id: null,
-    date: new Date().toISOString().split('T')[0], // Store date as YYYY-MM-DD string
+    date: new Date().toISOString().split('T')[0],
     provider_id: null,
     issuer_ruc: '',
     issuer_name: '',
@@ -116,7 +117,12 @@ async function searchProviderByRUC() {
 }
 
 function handleSaveDetail() {
-  emit('detail-saved', { ...detailForm.value })
+  // SOLUCIÓN: Emitimos también provider_name para que la tabla principal pueda leerlo correctamente
+  emit('detail-saved', {
+    ...detailForm.value,
+    provider_name: detailForm.value.issuer_name,
+    provider_ruc: detailForm.value.issuer_ruc
+  })
   emit('update:isOpen', false)
 }
 </script>
@@ -136,7 +142,7 @@ function handleSaveDetail() {
           <Label for="detail-date" class="text-left">Fecha</Label>
           <Input id="detail-date" type="date" v-model="detailForm.date" class="w-full" />
         </div>
-            
+
         <div>
             <Label for="detail-provider-ruc" class="text-left">RUC Proveedor</Label>
             <div class="flex gap-2">

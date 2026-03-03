@@ -43,14 +43,7 @@ def lookup_provider(ruc, payload):
         address = data.get('direccion') or data.get('domicilio_fiscal') or ''
         ubigeo = data.get('ubigeo') or ''
         name = data.get('razon_social') or data.get('nombre') or ''
-        try:
-            new_provider = Provider(ruc=data['numero_documento'], name=name, address=address)
-            db.session.add(new_provider)
-            db.session.commit()
-            response_data = new_provider.to_dict()
-        except:
-            db.session.rollback()
-            response_data = {'id': None, 'ruc': data.get('numero_documento'), 'name': name, 'address': address}
+        response_data = {'id': None, 'ruc': data.get('numero_documento'), 'name': name, 'address': address}
         response_data['address'] = address
         response_data['direccion'] = address
         response_data['ubigeo'] = ubigeo
@@ -255,6 +248,48 @@ def search_providers(payload):
     providers = query.order_by(Provider.name).limit(20).all()
     return jsonify([p.to_dict() for p in providers])
 
+@purchase_api.route('/providers', methods=['POST'])
+@requires_auth(required_permission='create:purchases')
+def create_provider(payload):
+    data = request.get_json()
+    if not data.get('ruc') or not data.get('name'):
+        return jsonify(error="RUC y Razón Social son obligatorios"), 400
+
+    try:
+        new_provider = Provider(
+            ruc=data['ruc'],
+            name=data['name'],
+            address=data.get('address')
+        )
+        db.session.add(new_provider)
+        db.session.commit()
+        return jsonify(new_provider.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(error=str(e)), 500
+
+
+@purchase_api.route('/providers/<int:provider_id>', methods=['PUT'])
+@requires_auth(required_permission='create:purchases')
+def update_provider(provider_id, payload):
+    data = request.get_json()
+    try:
+        provider = Provider.query.get_or_404(provider_id)
+
+        if 'ruc' in data:
+            provider.ruc = data['ruc']
+        if 'name' in data:
+            provider.name = data['name']
+        if 'address' in data:
+            provider.address = data['address']
+
+        db.session.commit()
+        return jsonify(provider.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(error=str(e)), 500
+
+
 @purchase_api.route('/providerslist', methods=['GET'])
 @requires_auth(required_permission='create:purchases')
 def get_providers(payload):
@@ -355,8 +390,7 @@ def download_purchase_pdf(order_id, payload):
     # 2. Lista Base (Forma de pago, Fecha, Moneda)
     condiciones = [
         f"Forma de Pago: {order.payment_condition or '-'}",
-        texto_fecha,
-        f"Tipo de moneda: {order.currency}"
+        texto_fecha
     ]
 
     # 3. Agregar condiciones guardadas (Penalidad + Lista Extra)

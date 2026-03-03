@@ -105,6 +105,7 @@ class TreasuryRenderDetailResponse(BaseModel):
     provider_id: Optional[int] = None
     provider_name: Optional[str] = None
     invoice_series: Optional[str] = None
+    provider_ruc: Optional[str] = None
     invoice_number: Optional[str] = None
     description: str
     amount: float

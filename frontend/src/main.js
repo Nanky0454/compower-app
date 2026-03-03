@@ -9,11 +9,11 @@ const app = createApp(App)
 // Configura el plugin de Auth0
 app.use(
   createAuth0({
-    domain: 'dev-gforng2dfnavhcdz.us.auth0.com', // <-- Pega tu Domain
-    clientId: 'UJPg0NM2Dxum2EMn5WATWJuapSKPI2cQ', // <-- Pega tu Client ID
+    domain: 'compower-app.us.auth0.com', // <-- Pega tu Domain
+    clientId: 'j4IOBtmgRSkjFfyTGZ0ypuQrjv1NKskw', // <-- Pega tu Client ID
     authorizationParams: {
       redirect_uri: window.location.origin,
-      audience: 'https://api.appcompower.com' // <-- Pega tu Audience/Identifier
+      audience: 'https://compower-app.us.auth0.com/api/v2/' // <-- Pega tu Audience/Identifier
     }
   })
 )

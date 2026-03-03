@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 
 const props = defineProps({
   isOpen: Boolean,
-  accounts: Array
+  accounts: Array,
+  transactionToEdit: Object
 })
 
 const emit = defineEmits(['update:isOpen', 'transaction-added'])
@@ -54,6 +55,74 @@ const isSearchingIssuer = ref(false)
 
 const isExpense = computed(() => form.value.type === 'EGRESO')
 const isIncome = computed(() => form.value.type === 'INGRESO')
+
+const dialogTitle = computed(() => props.transactionToEdit ? 'Editar Movimiento' : 'Registrar Movimiento')
+
+// --- Watchers ---
+watch(() => props.isOpen, (newVal) => {
+    if (newVal) {
+        if (props.transactionToEdit) {
+            const t = props.transactionToEdit
+            form.value = {
+                date: t.date,
+                description: t.description,
+                amount: t.amount,
+                type: t.type,
+                account_id: String(t.account_id),
+                expense_type_id: t.expense_type_id ? String(t.expense_type_id) : null,
+                income_type_id: t.income_type_id ? String(t.income_type_id) : null,
+                beneficiary_type: t.beneficiary_type,
+                beneficiary_provider_id: t.beneficiary_provider_id ? String(t.beneficiary_provider_id) : null,
+                beneficiary_employee_id: t.beneficiary_employee_id ? String(t.beneficiary_employee_id) : null,
+                beneficiary_account_id: t.beneficiary_account_id ? String(t.beneficiary_account_id) : null,
+                has_document: !!t.document,
+                document: t.document ? {
+                    document_type_id: String(t.document.document_type_id),
+                    series: t.document.series,
+                    number: t.document.number,
+                    issuer_ruc: t.document.issuer_ruc,
+                    issuer_name: t.document.issuer_name,
+                    issue_date: t.document.issue_date,
+                    amount: t.document.amount
+                } : {
+                    document_type_id: null,
+                    series: '',
+                    number: '',
+                    issuer_ruc: '',
+                    issuer_name: '',
+                    issue_date: new Date().toISOString().substr(0, 10),
+                    amount: ''
+                }
+            }
+        } else {
+            // Reset form for new transaction
+            form.value = {
+                date: new Date().toISOString().substr(0, 10),
+                description: '',
+                amount: '',
+                type: 'INGRESO',
+                account_id: null,
+                expense_type_id: null,
+                income_type_id: null,
+                beneficiary_type: null,
+                beneficiary_provider_id: null,
+                beneficiary_employee_id: null,
+                beneficiary_account_id: null,
+                has_document: false,
+                document: {
+                    document_type_id: null,
+                    series: '',
+                    number: '',
+                    issuer_ruc: '',
+                    issuer_name: '',
+                    issue_date: new Date().toISOString().substr(0, 10),
+                    amount: ''
+                }
+            }
+        }
+        beneficiarySearch.value = ''
+    }
+})
 
 async function fetchExpenseTypes() {
   try {
@@ -181,8 +250,14 @@ async function handleSubmit() {
         delete payload.document
     }
     
-    const response = await fetch('/api/treasury/transactions', {
-      method: 'POST',
+    const url = props.transactionToEdit 
+        ? `/api/treasury/transactions/${props.transactionToEdit.id}`
+        : '/api/treasury/transactions'
+    
+    const method = props.transactionToEdit ? 'PUT' : 'POST'
+    
+    const response = await fetch(url, {
+      method: method,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
@@ -190,41 +265,15 @@ async function handleSubmit() {
       body: JSON.stringify(payload)
     })
 
-    if (!response.ok) throw new Error('Error creating transaction')
+    if (!response.ok) throw new Error('Error saving transaction')
 
-    // toast({ title: 'Éxito', description: 'Movimiento registrado correctamente' })
-    alert('Movimiento registrado correctamente')
+    // toast({ title: 'Éxito', description: 'Movimiento guardado correctamente' })
+    alert('Movimiento guardado correctamente')
     emit('transaction-added')
     emit('update:isOpen', false)
-    
-    // Reset form
-    form.value = {
-      date: new Date().toISOString().substr(0, 10),
-      description: '',
-      amount: '',
-      type: 'INGRESO',
-      account_id: null,
-      expense_type_id: null,
-      income_type_id: null,
-      beneficiary_type: null,
-      beneficiary_provider_id: null,
-      beneficiary_employee_id: null,
-      beneficiary_account_id: null,
-      has_document: false,
-      document: {
-        document_type_id: null,
-        series: '',
-        number: '',
-        issuer_ruc: '',
-        issuer_name: '',
-        issue_date: new Date().toISOString().substr(0, 10),
-        amount: ''
-      }
-    }
-    beneficiarySearch.value = ''
   } catch (error) {
-    // toast({ title: 'Error', description: 'No se pudo registrar el movimiento', variant: 'destructive' })
-    alert('Error: No se pudo registrar el movimiento')
+    // toast({ title: 'Error', description: 'No se pudo guardar el movimiento', variant: 'destructive' })
+    alert('Error: No se pudo guardar el movimiento')
   }
 }
 
@@ -239,7 +288,7 @@ onMounted(() => {
   <Dialog :open="isOpen" @update:open="$emit('update:isOpen', $event)">
     <DialogContent :class="form.has_document ? 'sm:max-w-[900px]' : 'sm:max-w-[500px]'">
       <DialogHeader>
-        <DialogTitle>Registrar Movimiento</DialogTitle>
+        <DialogTitle>{{ dialogTitle }}</DialogTitle>
       </DialogHeader>
       
       <div class="flex gap-6 py-4">
@@ -458,7 +507,9 @@ onMounted(() => {
       </div>
 
       <DialogFooter>
-        <Button type="submit" @click="handleSubmit">Guardar</Button>
+        <Button type="submit" @click="handleSubmit">
+            {{ transactionToEdit ? 'Actualizar' : 'Guardar' }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

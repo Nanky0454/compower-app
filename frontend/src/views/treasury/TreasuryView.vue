@@ -16,6 +16,8 @@ const { getAccessTokenSilently } = useAuth0()
 const accounts = ref([])
 const transactions = ref([])
 const isFormOpen = ref(false)
+const isEditFormOpen = ref(false)
+const transactionToEdit = ref(null)
 const isExporting = ref(false)
 const activeTab = ref('all')
 
@@ -180,6 +182,40 @@ function handleTabChange(value) {
   fetchTransactions()
 }
 
+function handleEditTransaction(transaction) {
+  transactionToEdit.value = { ...transaction }
+  isEditFormOpen.value = true
+}
+
+async function handleDeleteTransaction(id) {
+  if (!confirm('¿Estás seguro de eliminar este movimiento? Si es una asignación, se eliminarán también todas sus rendiciones.')) return
+  
+  try {
+    const token = await getAccessTokenSilently()
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/transactions/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    
+    if (response.ok) {
+      alert('Movimiento eliminado correctamente')
+      fetchTransactions()
+    } else {
+      const errorData = await response.json()
+      alert('Error: ' + (errorData.error || 'No se pudo eliminar el movimiento'))
+    }
+  } catch (error) {
+    console.error('Error deleting transaction:', error)
+    alert('Error de conexión al intentar eliminar')
+  }
+}
+
+function handleTransactionUpdated() {
+  fetchTransactions()
+  isEditFormOpen.value = false
+  transactionToEdit.value = null
+}
+
 // Watchers for filters
 watch([selectedMonth, selectedYear], () => {
   fetchTransactions()
@@ -271,7 +307,11 @@ onMounted(() => {
             <CardTitle>Todos los Movimientos</CardTitle>
           </CardHeader>
           <CardContent>
-            <TransactionTable :transactions="filteredTransactions" />
+            <TransactionTable 
+              :transactions="filteredTransactions" 
+              @edit-transaction="handleEditTransaction"
+              @delete-transaction="handleDeleteTransaction"
+            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -282,7 +322,11 @@ onMounted(() => {
             <CardTitle>Movimientos - {{ acc.alias || acc.bank_name }}</CardTitle>
           </CardHeader>
           <CardContent>
-            <TransactionTable :transactions="filteredTransactions" />
+            <TransactionTable 
+              :transactions="filteredTransactions" 
+              @edit-transaction="handleEditTransaction"
+              @delete-transaction="handleDeleteTransaction"
+            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -321,6 +365,13 @@ onMounted(() => {
       v-model:isOpen="isFormOpen" 
       :accounts="accounts"
       @transaction-added="fetchTransactions"
+    />
+
+    <TransactionForm 
+      v-model:isOpen="isEditFormOpen" 
+      :accounts="accounts"
+      :transaction-to-edit="transactionToEdit"
+      @transaction-added="handleTransactionUpdated"
     />
   </div>
 </template>

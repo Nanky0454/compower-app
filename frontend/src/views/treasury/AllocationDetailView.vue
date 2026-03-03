@@ -44,6 +44,25 @@ function formatCurrency(amount, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', { style: 'currency', currency: currency }).format(amount)
 }
 
+function formatDate(dateString) {
+  if (!dateString) return ''
+  
+  // Normalize string: take only the date part (YYYY-MM-DD)
+  const str = String(dateString)
+  const datePart = str.split(/[T ]/)[0]
+  const parts = datePart.split('-').map(Number)
+  
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const [year, month, day] = parts
+    // new Date(year, monthIndex, day) creates a date in local time
+    const date = new Date(year, month - 1, day)
+    return date.toLocaleDateString('es-PE')
+  }
+  
+  // Fallback for other formats
+  return new Date(str).toLocaleDateString('es-PE')
+}
+
 async function fetchAllocationDetails() {
   isLoading.value = true
   try {
@@ -227,7 +246,7 @@ onMounted(() => {
         <CardContent class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p class="text-sm text-muted-foreground">Fecha:</p>
-            <p class="font-medium">{{ new Date(allocation.date).toLocaleDateString() }}</p>
+            <p class="font-medium">{{ formatDate(allocation.date) }}</p>
           </div>
           <div>
             <p class="text-sm text-muted-foreground">Monto Asignado:</p>

@@ -62,6 +62,7 @@ async function fetchDashboardCounts() {
   if (!isAuthenticated.value) return
   try {
     const token = await getAccessTokenSilently()
+    console.log(token)
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
