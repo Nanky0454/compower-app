@@ -5,7 +5,11 @@ import { Card } from '@/components/ui/card/index.js'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Button } from '@/components/ui/button/index.js'
-import { Loader2 } from 'lucide-vue-next'
+
+// --- NUEVOS IMPORTS PARA EL BUSCADOR ---
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover/index.js'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command/index.js'
+import { Loader2, Check, ChevronsUpDown } from 'lucide-vue-next'
 
 const { getAccessTokenSilently } = useAuth0()
 
@@ -15,6 +19,7 @@ const products = ref([])
 const warehouses = ref([])
 const isLoading = ref(true)
 const error = ref(null)
+const openProductSearch = ref(false) // Nuevo estado para el buscador
 
 // --- Filters ---
 const filters = ref({
@@ -73,30 +78,63 @@ function clearFilters() {
 
     <Card class="p-4">
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
-        <div>
-          <label class="text-sm font-medium">Producto</label>
-          <Select v-model="filters.product_id">
-            <SelectTrigger>
-              <SelectValue class="truncate" placeholder="Todos los productos" />
-            </SelectTrigger>
 
-            <SelectContent class="max-w-[90vw] md:max-w-[400px]">
-              <SelectItem
-                v-for="product in products"
-                :key="product.id"
-                :value="product.id.toString()"
-                class="whitespace-normal h-auto py-2 block"
+        <div class="flex flex-col space-y-1">
+          <label class="text-sm font-medium">Producto</label>
+          <Popover v-model:open="openProductSearch">
+            <PopoverTrigger as-child>
+              <Button
+                variant="outline"
+                role="combobox"
+                :aria-expanded="openProductSearch"
+                class="w-full justify-between h-10 px-3 bg-white hover:bg-gray-50 text-left font-normal"
               >
-               {{ product.name }} ({{ product.sku }})
-              </SelectItem>
-            </SelectContent>
-          </Select>
+                <span class="truncate">
+                  {{
+                    filters.product_id
+                      ? products.find(p => p.id.toString() === filters.product_id)?.name
+                      : "Buscar producto..."
+                  }}
+                </span>
+                <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+
+            <PopoverContent class="p-0 w-[400px] max-w-[90vw]" align="start">
+              <Command>
+                <CommandInput placeholder="Escribe para buscar (Ej: tubo, cable)..." />
+                <CommandEmpty>No se encontraron coincidencias.</CommandEmpty>
+                <CommandList>
+                  <CommandGroup>
+                    <CommandItem
+                      v-for="product in products"
+                      :key="product.id"
+                      :value="`${product.name} ${product.sku}`"
+                      @select="() => {
+                        filters.product_id = product.id.toString()
+                        openProductSearch = false
+                      }"
+                      class="cursor-pointer py-2"
+                    >
+                      <Check
+                        :class="['mr-2 h-4 w-4 mt-1 shrink-0', filters.product_id === product.id.toString() ? 'opacity-100 text-blue-600' : 'opacity-0']"
+                      />
+                      <div class="flex flex-col overflow-hidden">
+                        <span class="font-medium truncate">{{ product.name }}</span>
+                        <span class="text-xs text-gray-500 font-mono">SKU: {{ product.sku }}</span>
+                      </div>
+                    </CommandItem>
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
-        <div>
+        <div class="flex flex-col space-y-1">
           <label class="text-sm font-medium">Almacén</label>
           <Select v-model="filters.warehouse_id">
-            <SelectTrigger>
+            <SelectTrigger class="h-10 bg-white">
               <SelectValue class="truncate" placeholder="Todos los almacenes" />
             </SelectTrigger>
             <SelectContent>
@@ -108,7 +146,7 @@ function clearFilters() {
         </div>
 
         <div>
-          <Button variant="outline" @click="clearFilters">Limpiar Filtros</Button>
+          <Button variant="outline" class="h-10" @click="clearFilters">Limpiar Filtros</Button>
         </div>
       </div>
     </Card>

@@ -24,8 +24,17 @@ const isSubmitting = ref(false)
 const warehouses = ref([])
 const productCatalog = ref([])
 const openProductSearch = ref(false)
-const costCenters = ref([]) // Nuevo: Lista de centros de costo
-const openCostCenterSearch = ref(false) // Nuevo: Estado para el popover del centro de costo
+const costCenters = ref([])
+const openCostCenterSearch = ref(false)
+
+// --- Helpers ---
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // --- Formulario Principal ---
 const formData = reactive({
@@ -35,8 +44,9 @@ const formData = reactive({
   provider_id: null,
   provider_search: '',
   currency: 'PEN',
-  cost_center_id: 117, // Nuevo: ID por defecto
-  cost_center_name: '' // Nuevo: Nombre del centro de costo seleccionado
+  cost_center_id: 117,
+  cost_center_name: '',
+  receipt_date: getTodayDate() // <--- NUEVO CAMPO DE FECHA
 })
 
 // --- Estado del Buscador de Proveedores ---
@@ -59,17 +69,16 @@ onMounted(async () => {
   isLoading.value = true
   try {
     const token = await getAccessTokenSilently()
-    const [whRes, prodRes, ccRes] = await Promise.all([ // Añadir ccRes
+    const [whRes, prodRes, ccRes] = await Promise.all([
       fetch(`${API_URL}/api/inventory/warehouses`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${API_URL}/api/products`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${API_URL}/api/cost-centers`, { headers: { Authorization: `Bearer ${token}` } }) // Fetch Centros de Costo
+      fetch(`${API_URL}/api/cost-centers`, { headers: { Authorization: `Bearer ${token}` } })
     ])
 
     if (whRes.ok) warehouses.value = await whRes.json()
     if (prodRes.ok) productCatalog.value = await prodRes.json()
     if (ccRes.ok) {
         costCenters.value = await ccRes.json()
-        // Establecer el centro de costo por defecto
         const defaultCc = costCenters.value.find(cc => cc.id === formData.cost_center_id)
         if (defaultCc) {
             formData.cost_center_name = defaultCc.code
@@ -171,7 +180,6 @@ function addItem() {
     })
   }
 
-  // Reset del formulario temporal
   tempItem.product_id = null
   tempItem.product_data = null
   tempItem.quantity = 1
@@ -207,7 +215,8 @@ async function handleSubmit() {
       invoice_number: formData.invoice_number,
       provider_id: formData.provider_id,
       currency: formData.currency,
-      cost_center_id: formData.cost_center_id, // Añadido: Centro de costo seleccionado
+      cost_center_id: formData.cost_center_id,
+      receipt_date: formData.receipt_date, // <--- AÑADIDO AL PAYLOAD
       items: formData.items.map(i => ({
         product_id: i.product_id,
         quantity: i.quantity,
@@ -357,6 +366,11 @@ async function handleSubmit() {
             <div class="space-y-2">
               <Label class="font-semibold text-gray-700">Nro. Factura / Guía</Label>
               <Input v-model="formData.invoice_number" placeholder="Ej: F001-00004520" class="bg-white font-mono" />
+            </div>
+
+            <div class="space-y-2">
+              <Label class="font-semibold text-gray-700">Fecha de Ingreso</Label>
+              <Input type="date" v-model="formData.receipt_date" class="bg-white" />
             </div>
 
             <div class="pt-4 border-t mt-4 bg-gray-50 -mx-6 px-6 pb-2">

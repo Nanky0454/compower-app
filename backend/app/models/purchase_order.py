@@ -3,7 +3,6 @@ from datetime import datetime
 import json
 from .cost_center import CostCenter
 
-
 # --- 1. Catálogos ---
 class DocumentType(db.Model):
     __tablename__ = 'document_types'
@@ -12,14 +11,12 @@ class DocumentType(db.Model):
 
     def to_dict(self): return {'id': self.id, 'name': self.name}
 
-
 class OrderStatus(db.Model):
     __tablename__ = 'order_statuses'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
 
     def to_dict(self): return {'id': self.id, 'name': self.name}
-
 
 # --- 2. DETALLE (Items) ---
 class PurchaseOrderItem(db.Model):
@@ -31,8 +28,6 @@ class PurchaseOrderItem(db.Model):
     product = db.relationship('Product')
 
     # --- CAMBIO CLAVE PARA ESTRUCTURA TIPO ÁRBOL (OS) ---
-    # Si tiene valor, este item pertenece a ese grupo (Ej: "1.00 MEJORAMIENTO SALA 1")
-    # Si es NULL, es un item estándar (OC).
     group_name = db.Column(db.String(255), nullable=True)
     # ----------------------------------------------------
 
@@ -47,10 +42,7 @@ class PurchaseOrderItem(db.Model):
         return {
             'id': self.id,
             'order_id': self.order_id,
-
-            # Devolvemos el grupo para poder reconstruir el árbol en el Frontend/PDF
             'group_name': self.group_name,
-
             'invoice_detail_text': self.invoice_detail_text,
             'unit_of_measure': self.unit_of_measure,
             'quantity': float(self.quantity),
@@ -59,7 +51,6 @@ class PurchaseOrderItem(db.Model):
             'product_name': product_name,
             'product_sku': product_sku
         }
-
 
 # --- 3. CABECERA (OC/OS) ---
 class PurchaseOrder(db.Model):
@@ -71,7 +62,6 @@ class PurchaseOrder(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     order_type = db.Column(db.String(5), nullable=False, default='OC')
 
-    # --- Campos Formato Excel ---
     reference = db.Column(db.String(100), nullable=True)
     attention = db.Column(db.String(100), nullable=True)
 
@@ -79,13 +69,15 @@ class PurchaseOrder(db.Model):
     site = db.Column(db.String(255), nullable=True)
 
     scope = db.Column(db.Text, nullable=True)
-
     commercial_conditions = db.Column(db.Text, nullable=True)
-    # ----------------------------------------------
-
     payment_condition = db.Column(db.String(100), nullable=True)
 
-    # --- FECHAS ---
+    # --- NUEVOS CAMPOS: ELABORADO POR ---
+    creator_name = db.Column(db.String(150), nullable=True)
+    creator_role = db.Column(db.String(150), nullable=True)
+    creator_phone = db.Column(db.String(50), nullable=True)
+    # ------------------------------------
+
     transfer_date = db.Column(db.Date, nullable=True)
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
@@ -114,7 +106,6 @@ class PurchaseOrder(db.Model):
         s_date = self.start_date.strftime('%Y-%m-%d') if self.start_date else None
         e_date = self.end_date.strftime('%Y-%m-%d') if self.end_date else None
 
-        # Intentar convertir el texto guardado de vuelta a una lista real para el Frontend
         condiciones_lista = []
         if self.commercial_conditions:
             try:
@@ -141,10 +132,14 @@ class PurchaseOrder(db.Model):
             'coordinador': self.coordinator or '',
             'site': self.site or '',
 
+            # --- VARIABLES PARA EL PDF DE ELABORADO ---
+            'compower_contacto_nombre': self.creator_name,
+            'compower_contacto_cargo': self.creator_role,
+            'compower_contacto_numero': self.creator_phone,
+            # ------------------------------------------
+
             'fecha_emision': self.created_at.isoformat(),
             'alcance': self.scope,
-
-            # Devolvemos la lista de condiciones procesada
             'condiciones_comerciales': condiciones_lista,
             'notas_pie': self.footer_note,
             'forma_pago': self.payment_condition,

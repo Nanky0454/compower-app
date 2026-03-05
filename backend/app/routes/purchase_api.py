@@ -113,7 +113,12 @@ def create_purchase(payload):
             payment_condition=data.get('payment_condition'),
             currency=data.get('currency', 'PEN'),
 
-            # Campos Nuevos
+            # --- CAMPOS NUEVOS: ELABORADO POR ---
+            creator_name=data.get('creator_name'),
+            creator_role=data.get('creator_role'),
+            creator_phone=data.get('creator_phone'),
+            # ------------------------------------
+
             commercial_conditions=data.get('commercial_conditions'),
             footer_note=data.get('footer_note'),
 
@@ -175,6 +180,12 @@ def update_purchase(order_id, payload):
         if 'scope' in data: order.scope = data['scope']
         if 'payment_condition' in data: order.payment_condition = data['payment_condition']
         if 'currency' in data: order.currency = data['currency']
+
+        # --- ACTUALIZAR CREADOR (El último que edita se queda como elaborador) ---
+        if 'creator_name' in data: order.creator_name = data['creator_name']
+        if 'creator_role' in data: order.creator_role = data['creator_role']
+        if 'creator_phone' in data: order.creator_phone = data['creator_phone']
+        # ------------------------------------------------------------------------
 
         # Actualizar campos nuevos
         if 'commercial_conditions' in data: order.commercial_conditions = data['commercial_conditions']
@@ -452,6 +463,13 @@ def download_purchase_pdf(order_id, payload):
         'cc_codigo': order.cost_center.code if order.cost_center else '-',
         'coordinador': order.coordinator or '-',
         'site': order.site or '-',
+
+        # --- PASAMOS LAS VARIABLES DE ELABORADO AL PDF ---
+        'compower_contacto_nombre': order.creator_name,
+        'compower_contacto_cargo': order.creator_role,
+        'compower_contacto_numero': order.creator_phone,
+        # -------------------------------------------------
+
         'fecha_emision': order.created_at.strftime('%d/%m/%Y'),
         'items': items_data,
         'alcance': alcance_data,
@@ -460,7 +478,7 @@ def download_purchase_pdf(order_id, payload):
         'igv': igv,
         'total': total_gen,
         'condiciones': condiciones,
-        'notas_legales': notas_legales  # <--- Pasamos las notas
+        'notas_legales': notas_legales
     }
 
     html_string = render_template('purchase_order_weasy.html', **context)

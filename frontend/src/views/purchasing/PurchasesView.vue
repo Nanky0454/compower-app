@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   Loader2, Plus, Trash2, Search, FileText, Wrench, ArrowLeft, Check,
-  Eye, Contact, Download, ListTree, MapPin, Layers, Pencil, Ban, XCircle
+  Eye, Contact, Download, ListTree, MapPin, Layers, Pencil, Ban, XCircle, User
 } from 'lucide-vue-next'
 
 const { getAccessTokenSilently, user } = useAuth0()
@@ -141,6 +141,11 @@ const formData = reactive({
   provider_contact: '',
   coordinator_id: '',
 
+  // --- DATOS DEL CREADOR (AUTH0) ---
+  creator_name: '',
+  creator_role: '',
+  creator_phone: '',
+
   // Fechas
   issue_date: getToday(),
   transfer_date: getToday(),
@@ -158,10 +163,7 @@ const formData = reactive({
   // Condiciones
   penalty: '',
   commercial_conditions: [],
-
-  // --- NUEVO: NOTA AL PIE ---
   footer_note: '',
-
   scope: ''
 })
 
@@ -178,11 +180,7 @@ const DEFAULT_CONDITIONS = [
     "El contratista se compromete a cumplir con todas la leyes, regulaciones y normas de medio ambiente según apliquen en esta orden de compra.",
     "El número de esta orden de compra deberá estar claramente indicado en las facturas correspondientes al servicio ejecutado. Asimismo el contratista deberá comunicar recibo de esta orden de compra inmediatamente después de su recepción en los correos a mayala@compower.pe, jbarbachan@compower.pe. Cada factura deberá adjuntar su OC y el % de la misma, más el acumulado."
 ]
-
-// --- NOTA POR DEFECTO ---
-const DEFAULT_FOOTER_NOTE = `Nota: La orden de compra es nula sin todas las firmas necesarias.
-Toda factura deberá incluir el número de orden de compra y centro de costo correspondiente.
-Solo se recibirán documentos de pago (facturas) los días miércoles de 9:00 a 16:00. De enviar el documento fuera de día indicado será programado para la semana siguiente.`
+const DEFAULT_FOOTER_NOTE = `Nota: La orden de compra es nula sin todas las firmas necesarias.\nToda factura deberá incluir el número de orden de compra y centro de costo correspondiente.\nSolo se recibirán documentos de pago (facturas) los días miércoles de 9:00 a 16:00. De enviar el documento fuera de día indicado será programado para la semana siguiente.`
 
 // --- COMPUTED ---
 const formattedCorrelative = computed(() => {
@@ -227,11 +225,20 @@ function switchToCreate() {
   formData.payment_condition = ""
   formData.penalty = DEFAULT_PENALTY
   formData.commercial_conditions = [...DEFAULT_CONDITIONS]
-
-  // Cargar nota por defecto
   formData.footer_note = DEFAULT_FOOTER_NOTE
-
   formData.issue_date = getToday()
+
+  // --- CAPTURAR EL USUARIO DE AUTH0 CON CARGO Y TELÉFONO ---
+  if (user.value) {
+     formData.creator_name = user.value.name || user.value.nickname || ''
+     formData.creator_role = user.value[`${AUTH0_NAMESPACE}/cargo`]
+                          || user.value[`${AUTH0_NAMESPACE}/area`]
+                          || 'Logística'
+     formData.creator_phone = user.value.phone_number
+                           || user.value[`${AUTH0_NAMESPACE}/telefono`]
+                           || user.value[`${AUTH0_NAMESPACE}/phone`]
+                           || ''
+  }
 
   if(selectedType.value === 'OC') addItem()
   else addOSGroup()
@@ -254,7 +261,7 @@ async function loadCatalogs() {
     if (res.ok) catalogs.value = await res.json()
   } catch (e) { console.error(e) }
 }
-//------------------------------------
+
 function addIncludeLine() {
   formData.service_includes.push({ text: '' })
 }
@@ -262,14 +269,13 @@ function removeIncludeLine(index) {
   formData.service_includes.splice(index, 1)
 }
 
-// NUEVO: Formateador en tiempo real (Primera mayúscula, resto minúscula)
 function formatIncludeText(index) {
   const val = formData.service_includes[index].text;
   if (val) {
     formData.service_includes[index].text = val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
   }
 }
-//------------------------------------
+
 async function fetchNextCorrelative() {
   if (!correlativeSeries.value || correlativeSeries.value.length < 3) return
   isFetchingCorrelative.value = true
@@ -402,7 +408,6 @@ async function handleSubmit() {
             unit_price: i.unit_price
         }))
     } else {
-        // OS: Aplanar
         formData.os_groups.forEach(group => {
             group.items.forEach(item => {
                 itemsPayload.push({
@@ -437,12 +442,15 @@ async function handleSubmit() {
       provider_contact: formData.provider_contact,
       coordinator: formData.coordinator_id,
       site: formData.site,
-
       scope: complexScope,
 
-      // Enviamos datos de textos largos
+      // --- TEXTOS LARGOS Y CREADOR ---
       commercial_conditions: conditionsJson,
-      footer_note: formData.footer_note, // <--- NUEVO CAMPO ENVIADO
+      footer_note: formData.footer_note,
+      creator_name: formData.creator_name,
+      creator_role: formData.creator_role,
+      creator_phone: formData.creator_phone,
+      // -------------------------------
 
       payment_condition: formData.payment_condition,
       currency: formData.currency,
@@ -483,11 +491,8 @@ async function handleSubmit() {
 // =============================================================================
 //  ACCIONES DE ESTADO (APROBAR / ANULAR)
 // =============================================================================
-
 async function handleApprove(order) {
   if (!confirm(`¿Estás seguro de APROBAR la orden ${order.codigo || order.document_number}?`)) return
-
-  // Ponemos loading true para evitar doble clic visualmente
   isLoadingList.value = true
   try {
     const token = await getAccessTokenSilently()
@@ -495,22 +500,18 @@ async function handleApprove(order) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
-
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al aprobar la orden')
-
     alert(data.message)
-    await fetchOrders() // Recargamos la lista para ver el cambio de estado
-
+    await fetchOrders()
   } catch (e) {
     alert(e.message)
-    isLoadingList.value = false // Restauramos loading si hubo error
+    isLoadingList.value = false
   }
 }
 
 async function handleAnnul(order) {
   if (!confirm(`¿Estás seguro de ANULAR la orden ${order.codigo || order.document_number}?`)) return
-
   isLoadingList.value = true
   try {
     const token = await getAccessTokenSilently()
@@ -518,13 +519,10 @@ async function handleAnnul(order) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
-
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al anular la orden')
-
     alert(data.message)
-    await fetchOrders() // Recargamos la lista
-
+    await fetchOrders()
   } catch (e) {
     alert(e.message)
     isLoadingList.value = false
@@ -533,7 +531,6 @@ async function handleAnnul(order) {
 
 async function handleDelete(order) {
   if (!confirm(`¿Estás seguro de ELIMINAR PERMANENTEMENTE la orden ${order.codigo || order.document_number}? Esta acción no se puede deshacer.`)) return
-
   isLoadingList.value = true
   try {
     const token = await getAccessTokenSilently()
@@ -541,20 +538,16 @@ async function handleDelete(order) {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     })
-
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al eliminar la orden')
-
     alert(data.message)
     await fetchOrders()
-
   } catch (e) {
     alert(e.message)
   } finally {
     isLoadingList.value = false
   }
 }
-
 </script>
 
 <template>
@@ -704,7 +697,6 @@ async function handleDelete(order) {
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
         <div class="lg:col-span-2 space-y-6">
 
           <Card>
@@ -716,9 +708,7 @@ async function handleDelete(order) {
                         <Input type="date" v-model="formData.issue_date" class="h-8 w-32 text-xs" disabled/>
                         <span class="absolute -bottom-4 left-0 w-full text-center text-[9px] text-gray-400" >EMISIÓN</span>
                     </div>
-
                     <div class="h-6 w-px bg-gray-300 mx-1"></div>
-
                     <div class="relative">
                         <Input v-model="correlativeSeries" class="h-8 w-16 text-center font-mono font-bold bg-blue-50 text-blue-700 border-blue-200" maxlength="3"  disabled />
                         <span class="absolute -bottom-4 left-0 w-full text-center text-[9px] text-gray-400">SERIE</span>
@@ -782,6 +772,27 @@ async function handleDelete(order) {
                   <Label>Referencia (Cotización / Proyecto)</Label>
                   <Input v-model="formData.reference" class="mt-1" />
               </div>
+
+              <div class="bg-blue-50/40 p-3 rounded-lg border border-blue-100 mt-4 space-y-3">
+                 <Label class="text-xs font-bold text-blue-700 uppercase flex items-center gap-1">
+                    <User class="w-3 h-3"/> Datos de quien elabora (Mis Datos)
+                 </Label>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <Label class="text-xs text-gray-500">Nombre</Label>
+                        <Input v-model="formData.creator_name" class="h-8 text-xs bg-white border-blue-100" />
+                    </div>
+                    <div>
+                        <Label class="text-xs text-gray-500">Cargo</Label>
+                        <Input v-model="formData.creator_role" class="h-8 text-xs bg-white border-blue-100" />
+                    </div>
+                    <div>
+                        <Label class="text-xs text-gray-500">Teléfono</Label>
+                        <Input v-model="formData.creator_phone" class="h-8 text-xs bg-white border-blue-100" placeholder="Ej: 959 799 370" />
+                    </div>
+                 </div>
+              </div>
+
             </CardContent>
           </Card>
 
@@ -904,8 +915,6 @@ async function handleDelete(order) {
              <Button variant="outline" class="w-full border-dashed border-orange-300 text-orange-600 hover:bg-orange-50" @click="addOSGroup">
                 <Layers class="w-4 h-4 mr-2"/> Agregar Nuevo Grupo de Trabajo
              </Button>
-
-
 
           </div>
              <Card class="border-t-4 border-t-gray-400 mt-6 shadow-sm">

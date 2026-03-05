@@ -5,7 +5,7 @@ import { useAuth0 } from '@auth0/auth0-vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
-import { ArrowLeft, FileText, Wrench, ListTree, CheckCircle2, ShieldAlert, ScrollText } from 'lucide-vue-next'
+import { ArrowLeft, FileText, Wrench, ListTree, CheckCircle2, ShieldAlert, ScrollText, User } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,7 +27,6 @@ const currencyFormatter = (amount, currency = 'PEN') => {
 
 const formatDate = (dateString) => {
   if (!dateString) return '-'
-  // Ajuste para evitar problemas de zona horaria con fechas YYYY-MM-DD simples
   const [year, month, day] = dateString.split('T')[0].split('-')
   return `${day}/${month}/${year}`
 }
@@ -126,7 +125,6 @@ function goBack() {
             <span class="text-sm font-medium">{{ order.cost_center_name }}</span>
           </div>
 
-
           <div class="space-y-1">
             <p class="text-xs font-bold text-gray-400 uppercase">Contacto</p>
             <p class="text-sm font-medium">{{ order.atencion || '-' }}</p>
@@ -134,7 +132,18 @@ function goBack() {
                  {{ order.contacto }}
             </div>
 
-            <div v-if="order.coordinador">
+            <div class="mt-3 pt-3 border-t border-gray-100">
+               <span class="text-xs font-bold text-blue-600 uppercase flex items-center gap-1 mb-1">
+                  <User class="w-3 h-3"/> Elaborado por
+               </span>
+               <span class="text-sm font-medium uppercase text-gray-800">{{ order.compower_contacto_nombre || '-' }}</span>
+               <span class="text-xs text-gray-500 block">
+                 {{ order.compower_contacto_cargo || 'Logística' }}
+                 <template v-if="order.compower_contacto_numero"> | {{ order.compower_contacto_numero }}</template>
+               </span>
+            </div>
+
+            <div class="mt-3 pt-3 border-t border-gray-100" v-if="order.coordinador">
                <span class="text-xs font-bold text-gray-400 uppercase block">Solicitante</span>
                <span class="text-sm font-medium">{{ order.coordinador }}</span>
             </div>

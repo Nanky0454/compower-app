@@ -9,24 +9,14 @@
         }
 
         html, body {
-            height: 100%;
             margin: 0;
             padding: 0;
-        }
-
-        body {
             font-family: 'Helvetica', 'Arial', sans-serif;
             font-size: 8pt;
             line-height: 1.2;
             color: #000;
-            display: flex;
-            flex-direction: column;
             box-sizing: border-box;
         }
-
-        /* --- SECCIONES PRINCIPALES --- */
-        .header-section { flex-shrink: 0; }
-        .footer-section { flex-shrink: 0; width: 100%; }
 
         /* --- CABECERA --- */
         .top-header { width: 100%; margin-bottom: 6px; border-collapse: collapse; }
@@ -48,9 +38,8 @@
         .lbl-cell { background-color: #e0e0e0; font-weight: bold; width: 13%; }
         .lbl-cell-sm { background-color: #e0e0e0; font-weight: bold; width: 10%; }
 
-        /* --- CONTENEDOR FLEXIBLE DE ITEMS (LLENA EL ESPACIO EN BLANCO) --- */
+        /* --- CONTENEDOR DE ITEMS --- */
         .items-wrapper {
-            flex-grow: 1;
             width: 100%;
             border-left: 1px solid #000;
             border-right: 1px solid #000;
@@ -123,15 +112,17 @@
         .conditions-list li { margin-bottom: 2px; text-align: justify; }
 
         /* --- FIRMAS --- */
-        .signatures-section { page-break-inside: avoid; width: 100%; margin-top: 10px; }
+        .signatures-section { page-break-inside: avoid; width: 100%; margin-top: 5px; }
         .signatures-table { width: 100%; border-collapse: separate; border-spacing: 20px 0; }
-        .sig-cell { border: 1px solid #000; width: 30%; height: 85px; vertical-align: bottom; text-align: center; padding-bottom: 5px; }
+        .sig-cell { border: 1px solid #000; width: 30%; height: 80px; vertical-align: bottom; text-align: center; padding-bottom: 5px; }
         .sig-line { border-top: 1px solid #000; width: 85%; margin: 0 auto 4px auto; }
         .sig-name { font-weight: bold; font-size: 7pt; display: block; }
         .sig-role { font-size: 6.5pt; display: block; }
     </style>
 </head>
 <body>
+
+    {% set has_incluye = alcance and (alcance is string or (alcance is mapping and alcance['includes'])) %}
 
     <div class="header-section">
         <table class="top-header">
@@ -200,29 +191,32 @@
             </tr>
             <tr>
                 <td class="lbl-cell">Elaborado:</td>
-                <td>{{ compower_contacto_nombre | default('Jose Barbachan') | title }}</td>
+                <td>{{ compower_contacto_nombre }}</td>
                 <td class="lbl-cell">Cargo:</td>
-                <td>{{ compower_contacto_cargo | default('Adquisiciones') | title }}</td>
+                <td>{{ compower_contacto_cargo  }}</td>
                 <td class="lbl-cell-sm">Teléfono:</td>
                 <td>{{ compower_contacto_numero | default('959 799 370') }}</td>
             </tr>
         </table>
     </div>
 
-    <div class="items-wrapper">
-        {% if alcance is mapping and alcance['groups'] %}
-            <div class="v-line" style="left: 6%;"></div>
-            <div class="v-line" style="left: 55%;"></div>
-            <div class="v-line" style="left: 60%;"></div>
-            <div class="v-line" style="left: 66%;"></div>
-            <div class="v-line" style="left: 76%;"></div>
-            <div class="v-line" style="left: 88%;"></div>
-        {% else %}
-            <div class="v-line" style="left: 6%;"></div>
-            <div class="v-line" style="left: 58%;"></div>
-            <div class="v-line" style="left: 64%;"></div>
-            <div class="v-line" style="left: 72%;"></div>
-            <div class="v-line" style="left: 86%;"></div>
+    <div class="items-wrapper" {% if not has_incluye %}style="height: 12cm;"{% endif %}>
+
+        {% if not has_incluye %}
+            {% if alcance is mapping and alcance['groups'] %}
+                <div class="v-line" style="left: 6%;"></div>
+                <div class="v-line" style="left: 55%;"></div>
+                <div class="v-line" style="left: 60%;"></div>
+                <div class="v-line" style="left: 66%;"></div>
+                <div class="v-line" style="left: 76%;"></div>
+                <div class="v-line" style="left: 88%;"></div>
+            {% else %}
+                <div class="v-line" style="left: 6%;"></div>
+                <div class="v-line" style="left: 58%;"></div>
+                <div class="v-line" style="left: 64%;"></div>
+                <div class="v-line" style="left: 72%;"></div>
+                <div class="v-line" style="left: 86%;"></div>
+            {% endif %}
         {% endif %}
 
         <table class="items-table">
@@ -308,6 +302,25 @@
                     </tr>
                     {% endfor %}
                 {% endif %}
+
+                {% if has_incluye %}
+                {% set cols = 7 if (alcance is mapping and alcance['groups']) else 6 %}
+                <tr>
+                    <td style="border-top: 1px solid #000; border-right: 1px solid #000;"></td>
+                    <td colspan="{{ cols - 1 }}" style="text-align: left; padding: 5px 8px; border-top: 1px solid #000;">
+                        <div class="section-title" style="margin-bottom: 3px;">INCLUYE:</div>
+                        {% if alcance is mapping and alcance['includes'] %}
+                            <ul class="conditions-list" style="margin-top: 0; margin-bottom: 0;">
+                            {% for inc in alcance['includes'] %}
+                                <li>{{ inc['text'] }}</li>
+                            {% endfor %}
+                            </ul>
+                        {% else %}
+                            <div style="white-space: pre-wrap; margin-left: 10px;">{{ alcance }}</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
@@ -356,35 +369,14 @@
         </table>
 
         <table class="notes-table">
-            {% if alcance and (alcance is string or (alcance is mapping and alcance['includes'])) %}
-            <tr>
-                <td>
-                    <div class="section-title">INCLUYE:</div>
-                    {% if alcance is mapping and alcance['includes'] %}
-                        <ul class="conditions-list">
-                        {% for inc in alcance['includes'] %}
-                            <li>{{ inc['text'] }}</li>
-                        {% endfor %}
-                        </ul>
-                    {% else %}
-                        {% if alcance is string %}
-                            <div style="white-space: pre-wrap;">{{ alcance }}</div>
-                        {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
-            {% endif %}
-
             <tr>
                 <td>
                     <div class="section-title">CONDICIONES COMERCIALES:</div>
                     <ul class="conditions-list">
                         {% for cond in condiciones %}
-                            {# Lógica para omitir líneas que solo sean un guion '-' #}
                             {% set clean_cond = cond|replace('•', '')|trim %}
                             {% if clean_cond != '-' and clean_cond != '' %}
                                 <li>
-                                    {# Limita la negrita a etiquetas cortas (ej. Forma de pago:) evitando oraciones largas #}
                                     {% if ':' in cond and cond.split(':', 1)[0]|length < 40 and not cond.strip().lower().startswith('nota') %}
                                         {% set parts = cond.split(':', 1) %}
                                         <strong>{{ parts[0] }}:</strong> {{ parts[1] }}
@@ -422,8 +414,8 @@
                 <tr>
                     <td class="sig-cell">
                         <div class="sig-line"></div>
-                        <span class="sig-name">JOSE BARBACHAN HERNANDEZ</span>
-                        <span class="sig-role">LOGÍSTICA</span>
+                        <span class="sig-name">{{ compower_contacto_nombre | default('JOSE BARBACHAN HERNANDEZ') | upper }}</span>
+                        <span class="sig-role">{{ compower_contacto_cargo | default('LOGÍSTICA') | upper }}</span>
                         <span class="sig-role">Elaborado</span>
                     </td>
                     <td class="sig-cell">

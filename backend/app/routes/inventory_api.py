@@ -22,6 +22,7 @@ from PIL import Image
 
 inventory_api = Blueprint('inventory_api', __name__)
 
+from datetime import date, datetime
 
 # --- API DE ETIQUETAS (Sin cambios) ---
 class PDF(FPDF):
@@ -482,7 +483,6 @@ def direct_receive_inventory(payload):
         # ---------------------------------------------------------
         # 3. GESTIÓN DE PROVEEDOR
         # ---------------------------------------------------------
-        # Ahora lo guardamos directamente en la Recepción, no en una OC
         provider_id = data.get('provider_id')
         target_provider_id = None
 
@@ -501,13 +501,27 @@ def direct_receive_inventory(payload):
         # ---------------------------------------------------------
         # 4. CREACIÓN DE LA RECEPCIÓN (LIMPIA, SIN OC)
         # ---------------------------------------------------------
+        from datetime import datetime
+
+        # Procesar la fecha (Lo guardamos como DateTime completo para que encaje en tu modelo)
+        receipt_date_str = data.get('receipt_date')
+        if receipt_date_str:
+            try:
+                receipt_date_val = datetime.strptime(receipt_date_str, '%Y-%m-%d')
+            except ValueError:
+                receipt_date_val = datetime.now()
+        else:
+            receipt_date_val = datetime.now()
+
+        # AQUÍ SE CREA LA VARIABLE (Esto era lo que faltaba en la ejecución anterior)
         new_receipt = ProductReceipt(
-            purchase_order_id=None,  # <--- AQUÍ ESTÁ LA MAGIA: NULL
-            provider_id=target_provider_id,  # <--- Guardamos quién envió la mercadería
+            purchase_order_id=None,
+            provider_id=target_provider_id,
             warehouse_id=data['warehouse_id'],
             invoice_number=data.get('invoice_number', 'SN'),
             created_by=user_id,
-            cost_center_id=data.get('cost_center_id') # AÑADIDO: Centro de costo directo
+            cost_center_id=data.get('cost_center_id'),
+            receipt_date=receipt_date_val
         )
         db.session.add(new_receipt)
         db.session.flush()  # Obtenemos el ID de la recepción
@@ -531,12 +545,12 @@ def direct_receive_inventory(payload):
 
             # A) Crear Item de Recepción
             receipt_item = ProductReceiptItem(
-                receipt_id=new_receipt.id,
+                receipt_id=new_receipt.id,  # <--- AHORA SÍ ENCONTRARÁ LA VARIABLE
                 product_id=product_id,
                 quantity=qty,
                 unit_price=raw_unit_price,
                 location=location,
-                po_item_id=None  # <--- NULL: No hay item de OC vinculado
+                po_item_id=None
             )
             db.session.add(receipt_item)
 
@@ -616,7 +630,6 @@ def direct_receive_inventory(payload):
         import traceback
         traceback.print_exc()
         return jsonify(error=f"Error al procesar ingreso: {str(e)}"), 500
-
 
 @inventory_api.route('/receipts', methods=['GET'])
 @requires_auth(required_permission='view:inventory')

@@ -12,13 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   Loader2, Plus, Trash2, Search, Save, ArrowLeft, Contact,
-  MapPin, ListTree, Layers, XCircle
+  MapPin, ListTree, Layers, XCircle, User
 } from 'lucide-vue-next'
 
-const { getAccessTokenSilently } = useAuth0()
+const { getAccessTokenSilently, user } = useAuth0()
 const route = useRoute()
 const router = useRouter()
 const FLASK_API_URL = `${import.meta.env.VITE_API_URL}/api`
+const AUTH0_NAMESPACE = 'https://appcompower.com'
 
 // --- ESTADO ---
 const isLoading = ref(true)
@@ -72,6 +73,11 @@ const formData = reactive({
   coordinator: '',
   site: '',
 
+  // --- NUEVOS CAMPOS DEL CREADOR ---
+  creator_name: '',
+  creator_role: '',
+  creator_phone: '',
+
   payment_condition: '',
   currency: 'PEN',
 
@@ -108,7 +114,7 @@ const getToday = () => {
   return `${year}-${month}-${day}`;
 }
 
-// Cálculos (Idénticos a PurchaseView)
+// Cálculos
 const subtotal = computed(() => {
   if (formData.order_type === 'OS') {
      let totalOS = 0
@@ -160,11 +166,10 @@ async function loadOrderData() {
     formData.document_number = data.codigo
     formData.order_type = data.order_type || 'OC'
 
-    // Mantenemos el ID del estado actual para enviarlo al guardar, pero no lo mostramos en UI
     const statusObj = catalogs.value.statuses.find(s => s.name === data.status)
     formData.status_id = statusObj ? statusObj.id : null
 
-    formData.provider_id = data.provider_id // Asumiendo que el back devuelve esto, si no, se busca al guardar
+    formData.provider_id = data.provider_id
     formData.provider_search = data.provider_name
     formData.cost_center_id = data.id_cc
     formData.reference = data.referencia
@@ -174,6 +179,17 @@ async function loadOrderData() {
     formData.site = data.site
     formData.payment_condition = data.forma_pago
     formData.currency = data.moneda
+
+    // --- REASIGNAR ELABORADOR AL USUARIO ACTUAL ---
+    if (user.value) {
+       formData.creator_name = user.value.name || user.value.nickname || data.compower_contacto_nombre || ''
+       formData.creator_role = user.value[`${AUTH0_NAMESPACE}/cargo`] || data.compower_contacto_cargo || 'Logística'
+       formData.creator_phone = user.value.phone_number || user.value[`${AUTH0_NAMESPACE}/telefono`] || data.compower_contacto_numero || ''
+    } else {
+       formData.creator_name = data.compower_contacto_nombre || ''
+       formData.creator_role = data.compower_contacto_cargo || 'Logística'
+       formData.creator_phone = data.compower_contacto_numero || ''
+    }
 
     // Fechas
     formData.issue_date = getToday()
@@ -291,7 +307,6 @@ function getGroupTotal(group) { return group.items.reduce((acc, item) => acc + (
 function addIncludeLine() { formData.service_includes.push({ text: '' }) }
 function removeIncludeLine(index) { formData.service_includes.splice(index, 1) }
 
-// --- GESTIÓN DE CONDICIONES ---
 function addConditionLine() { formData.commercial_conditions.push('') }
 function removeConditionLine(index) { formData.commercial_conditions.splice(index, 1) }
 
@@ -322,7 +337,7 @@ async function handleUpdate() {
       document_class: formData.document_class,
       document_number: formData.document_number,
       order_type: formData.order_type,
-      status_id: formData.status_id, // Enviamos el mismo estado que tenía
+      status_id: formData.status_id,
       cost_center_id: formData.cost_center_id,
       document_type_id: docType ? docType.id : 1,
       ...(formData.provider_id && { provider_id: formData.provider_id }),
@@ -332,6 +347,12 @@ async function handleUpdate() {
       provider_contact: formData.provider_contact,
       coordinator: formData.coordinator,
       site: formData.site,
+
+      // --- ENVIANDO LOS DATOS DEL CREADOR AL BACKEND ---
+      creator_name: formData.creator_name,
+      creator_role: formData.creator_role,
+      creator_phone: formData.creator_phone,
+
       scope: scopePayload,
       payment_condition: formData.payment_condition,
       currency: formData.currency,
@@ -448,10 +469,32 @@ async function handleUpdate() {
                                 </div>
                             </div>
                         </div>
+
                         <div>
                             <Label>Referencia (Cotización / Proyecto)</Label>
                             <Input v-model="formData.reference" class="mt-1" />
                         </div>
+
+                        <div class="bg-blue-50/40 p-3 rounded-lg border border-blue-100 mt-4 space-y-3">
+                           <Label class="text-xs font-bold text-blue-700 uppercase flex items-center gap-1">
+                              <User class="w-3 h-3"/> Elaborado por (Actualizado a mi usuario)
+                           </Label>
+                           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                  <Label class="text-xs text-gray-500">Nombre</Label>
+                                  <Input v-model="formData.creator_name" class="h-8 text-xs bg-white border-blue-100" />
+                              </div>
+                              <div>
+                                  <Label class="text-xs text-gray-500">Cargo</Label>
+                                  <Input v-model="formData.creator_role" class="h-8 text-xs bg-white border-blue-100" />
+                              </div>
+                              <div>
+                                  <Label class="text-xs text-gray-500">Teléfono</Label>
+                                  <Input v-model="formData.creator_phone" class="h-8 text-xs bg-white border-blue-100" placeholder="Ej: 959 799 370" />
+                              </div>
+                           </div>
+                        </div>
+
                     </CardContent>
                 </Card>
 
