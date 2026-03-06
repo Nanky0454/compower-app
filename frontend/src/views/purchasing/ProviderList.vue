@@ -52,7 +52,7 @@ const fetchProviders = async () => {
   isLoading.value = true
   try {
     const token = await getAccessTokenSilently()
-    const res = await fetch('/api/purchases/providerslist', {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/providerslist`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (res.ok) {
@@ -73,7 +73,7 @@ const searchRuc = async () => {
   isSearchingRuc.value = true
   try {
     const token = await getAccessTokenSilently()
-    const res = await fetch(`/api/purchases/lookup-provider/${newProvider.ruc}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/lookup-provider/${newProvider.ruc}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (res.ok) {
@@ -94,7 +94,7 @@ const searchRuc = async () => {
 const saveProvider = async () => {
   try {
     const token = await getAccessTokenSilently()
-    const res = await fetch('/api/purchases/providers', {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/providers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ const updateProvider = async () => {
   if (!editingProvider.value) return
   try {
     const token = await getAccessTokenSilently()
-    const res = await fetch(`/api/purchases/providers/${editingProvider.value.id}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/purchases/providers/${editingProvider.value.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

@@ -1,12 +1,16 @@
-{
-    # Esta opción permite certificados locales sin dominio real
-    auto_https disable_redirects
-}
-
-https://192.168.1.23 {
-    # Genera un certificado auto-firmado para tu IP
+192.168.1.23 {
     tls internal
 
-    # Pasa el tráfico a tu contenedor de inventario
-    reverse_proxy sistema_inventario:5000
+    # 1. Enviar el tráfico de la API al backend de Flask (Puerto 5000)
+    reverse_proxy /api/* 127.0.0.1:5000
+
+    # 2. Servir los archivos estáticos de Vue (Frontend)
+    # IMPORTANTE: Cambia esta ruta por la ruta exacta donde está tu carpeta "dist"
+    root * /home/compower/compower-app/frontend/dist
+    encode gzip zstd
+    file_server
+
+    # 3. Regla de oro para Vue Router (Single Page Application)
+    # Si alguien recarga la página, que no de error 404 y le pase el control a Vue
+    try_files {path} /index.html
 }
