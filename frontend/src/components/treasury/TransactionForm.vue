@@ -127,7 +127,7 @@ watch(() => props.isOpen, (newVal) => {
 async function fetchExpenseTypes() {
   try {
     const token = await getAccessTokenSilently()
-    const response = await fetch('/api/treasury/expense-types', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/expense-types`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (response.ok) {
@@ -141,7 +141,7 @@ async function fetchExpenseTypes() {
 async function fetchIncomeTypes() {
   try {
     const token = await getAccessTokenSilently()
-    const response = await fetch('/api/treasury/income-types', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/income-types`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (response.ok) {
@@ -155,7 +155,7 @@ async function fetchIncomeTypes() {
 async function fetchDocumentTypes() {
   try {
     const token = await getAccessTokenSilently()
-    const response = await fetch('/api/treasury/document-types', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/document-types`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (response.ok) {
@@ -178,7 +178,7 @@ async function searchBeneficiary() {
       // Check if it looks like a RUC (11 digits)
       if (/^\d{11}$/.test(beneficiarySearch.value)) {
         // Try lookup/create by RUC
-        const res = await fetch(`/api/treasury/lookup-provider/${beneficiarySearch.value}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/lookup-provider/${beneficiarySearch.value}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
         if (res.ok) {
@@ -191,13 +191,13 @@ async function searchBeneficiary() {
       }
       
       // Normal search
-      const res = await fetch(`/api/treasury/providers?q=${beneficiarySearch.value}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/providers?q=${beneficiarySearch.value}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) providers.value = await res.json()
       
     } else if (form.value.beneficiary_type === 'EMPLOYEE') {
-      const res = await fetch(`/api/treasury/employees?q=${beneficiarySearch.value}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/employees?q=${beneficiarySearch.value}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) employees.value = await res.json()
@@ -216,7 +216,7 @@ async function searchIssuer() {
     isSearchingIssuer.value = true
     try {
         const token = await getAccessTokenSilently()
-        const res = await fetch(`/api/treasury/lookup-provider/${ruc}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/treasury/lookup-provider/${ruc}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
         if (res.ok) {
