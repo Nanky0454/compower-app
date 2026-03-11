@@ -211,7 +211,7 @@ function formatStatus(status) {
                     </Button>
 
                     <Button
-                        v-if="isAdmin && transfer.gre_series && transfer.status !== 'Anulada'"
+                        v-if="transfer.gre_series && transfer.status !== 'Anulada'"
                         variant="destructive"
                         size="icon"
                         class="h-8 w-8"

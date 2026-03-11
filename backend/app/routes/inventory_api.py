@@ -11,6 +11,8 @@ from ..models.inventory_models import InventoryStock, InventoryTransaction
 from ..models.product_catalog import Product, Category
 # --- IMPORTS NUEVOS PARA RECEPCIÓN ---
 from ..models.reception import ProductReceipt, ProductReceiptItem
+
+from ..models.stock_transfer import StockTransfer, StockTransferItem
 # -------------------------------------
 from ..services.auth_service import requires_auth
 from sqlalchemy import or_, and_, func
@@ -19,6 +21,8 @@ import pandas as pd
 import os
 from fpdf import FPDF
 from PIL import Image
+
+import re
 
 inventory_api = Blueprint('inventory_api', __name__)
 
@@ -404,9 +408,45 @@ def get_kardex_transactions(payload):
         if end_date: query = query.filter(InventoryTransaction.timestamp <= end_date)
 
         transactions = query.all()
-        return jsonify([t.to_dict() for t in transactions])
+        result = []
+
+        for t in transactions:
+            t_dict = t.to_dict()
+            site_name = "-"
+
+            if t.reference:
+                # 1. Órdenes de Compra
+                match_oc = re.search(r'Orden #(\d+)', t.reference)
+                if match_oc:
+                    po_id = match_oc.group(1)
+                    po = PurchaseOrder.query.get(po_id)
+                    # En tu captura anterior vimos que PO tiene 'site'
+                    if po and hasattr(po, 'site') and po.site:
+                        site_name = po.site
+
+                # 2. Guías de Remisión / Traslados
+                match_gre = re.search(r'GRE:\s*([A-Z0-9]+)-(\d+)', t.reference)
+                if match_gre:
+                    serie = match_gre.group(1)
+                    numero = match_gre.group(2)
+
+                    # Buscamos en StockTransfer
+                    transfer = StockTransfer.query.filter_by(gre_series=serie, gre_number=numero).first()
+
+                    if transfer:
+                        # Usamos tu columna correcta: destination_external_address
+                        if transfer.destination_external_address and transfer.destination_external_address != 'N/A':
+                            site_name = transfer.destination_external_address
+
+            # Inyectamos a Vue la variable que está esperando leer
+            t_dict['destination_external'] = site_name
+            result.append(t_dict)
+
+        return jsonify(result)
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()  # Esto imprimirá el error completo en tu consola si vuelve a fallar
         print(f"--- ERROR KARDEX: {e} ---")
         return jsonify(error=str(e)), 500
 

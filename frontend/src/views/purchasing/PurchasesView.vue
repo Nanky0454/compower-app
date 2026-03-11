@@ -177,10 +177,10 @@ const DEFAULT_PENALTY = "Penalidad: 5% por día de atraso, hasta un total de 15%
 const DEFAULT_CONDITIONS = [
     "El contratista será responsable de proveer los implementos de seguridad, SCTR para su ingreso y documentos de SST para su respectivo llenado a su personal.",
     "Ambas partes acuerdan que toda información y documentación será considerada confidencial, no será divulgada a terceros sin consentimiento, no utilizarla para fines distintos a los establecidos en esta orden de compra.",
-    "El contratista se compromete a cumplir con todas la leyes, regulaciones y normas de medio ambiente según apliquen en esta orden de compra.",
-    "El número de esta orden de compra deberá estar claramente indicado en las facturas correspondientes al servicio ejecutado. Asimismo el contratista deberá comunicar recibo de esta orden de compra inmediatamente después de su recepción en los correos a mayala@compower.pe, jbarbachan@compower.pe. Cada factura deberá adjuntar su OC y el % de la misma, más el acumulado."
+    "El contratista se compromete a cumplir con todas las leyes, regulaciones y normas de medio ambiente según apliquen en esta orden de compra.",
+    "El número de esta orden deberá estar claramente indicado en las facturas correspondientes al servicio ejecutado. Asimismo el contratista deberá comunicar acuerdo de recibo de esta orden de compra inmediatamente después de su recepción a los emails a gbarragan@compower.pe, jbarbachan@compower.pe. Cada factura deberá indicar el centro de costo, el # OC y el % de la misma, más el acumulado."
 ]
-const DEFAULT_FOOTER_NOTE = `Nota: La orden de compra es nula sin todas las firmas necesarias.\nToda factura deberá incluir el número de orden de compra y centro de costo correspondiente.\nSolo se recibirán documentos de pago (facturas) los días miércoles de 9:00 a 16:00. De enviar el documento fuera de día indicado será programado para la semana siguiente.`
+const DEFAULT_FOOTER_NOTE = `Nota: La orden de compra es nula sin todas las firmas.\nToda factura deberá incluir el número de orden de compra y centro de costo correspondiente.\nSolo se recibirán documentos de pago (facturas) los días miércoles de 09:00AM a 04:00PM. `
 
 // --- COMPUTED ---
 const formattedCorrelative = computed(() => {

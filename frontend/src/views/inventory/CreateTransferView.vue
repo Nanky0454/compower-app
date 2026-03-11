@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
+
 // Componentes UI
 import { Button } from '@/components/ui/button/index.js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card/index.js'
@@ -8,7 +9,12 @@ import { Input } from '@/components/ui/input/index.js'
 import { Label } from '@/components/ui/label/index.js'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
-import { Loader2, Search, Plus, Trash2, Truck, MapPin, FileText, Package } from 'lucide-vue-next'
+
+// --- NUEVOS COMPONENTES PARA EL BUSCADOR DE SEDE ---
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover/index.js'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command/index.js'
+
+import { Loader2, Search, Plus, Trash2, Truck, MapPin, FileText, Package, Check, ChevronsUpDown } from 'lucide-vue-next'
 
 const { getAccessTokenSilently } = useAuth0()
 const FLASK_API_URL = `${import.meta.env.VITE_API_URL}/api`
@@ -109,6 +115,9 @@ const isSearchingTransport = ref(false)
 const lineItems = ref([])
 const productSearch = ref('')
 const clientLocations = ref([])
+
+// ESTADO PARA EL BUSCADOR DE SEDE
+const openLocationSearch = ref(false)
 
 // =======================================================================
 // CARGA INICIAL
@@ -774,11 +783,51 @@ async function handleSubmit() {
                   <Label class="text-[9px] text-gray-400 font-bold uppercase">
                     Punto de Llegada <span class="text-red-500">*</span>
                   </Label>
-                  <div class="flex gap-2">
-                    <Select v-if="!showNewLocationForm" v-model="formData.location_id">
-                      <SelectTrigger class="h-8 text-xs flex-1 bg-white border-gray-200"><SelectValue placeholder="Seleccione Sede..." /></SelectTrigger>
-                      <SelectContent><SelectItem v-for="l in clientLocations" :key="l.id" :value="l.id" class="text-xs">{{ l.name }}</SelectItem></SelectContent>
-                    </Select>
+                  <div class="flex gap-2 items-center">
+
+                    <Popover v-if="!showNewLocationForm" v-model:open="openLocationSearch">
+                      <PopoverTrigger as-child>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          :aria-expanded="openLocationSearch"
+                          class="h-8 text-xs flex-1 bg-white border-gray-200 justify-between font-normal"
+                        >
+                          <span class="truncate">
+                            {{ formData.location_id
+                              ? clientLocations.find(l => l.id === formData.location_id)?.name
+                              : "Seleccione Sede..." }}
+                          </span>
+                          <ChevronsUpDown class="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent class="p-0 w-full" align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar sede..." class="h-8 text-xs" />
+                          <CommandEmpty class="text-xs p-2">Sede no encontrada.</CommandEmpty>
+                          <CommandList>
+                            <CommandGroup>
+                              <CommandItem
+                                v-for="l in clientLocations"
+                                :key="l.id"
+                                :value="l.name"
+                                @select="() => {
+                                  formData.location_id = l.id
+                                  openLocationSearch = false
+                                }"
+                                class="text-xs cursor-pointer py-1.5"
+                              >
+                                <Check
+                                  :class="['mr-2 h-3 w-3 shrink-0', formData.location_id === l.id ? 'opacity-100 text-blue-600' : 'opacity-0']"
+                                />
+                                {{ l.name }}
+                              </CommandItem>
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+
                     <Button size="icon" variant="outline" class="h-8 w-8 shrink-0 border-gray-200 hover:bg-white" @click="showNewLocationForm = !showNewLocationForm">
                       <Plus class="h-3.5 w-3.5 text-blue-600" :class="{'rotate-45': showNewLocationForm}"/>
                     </Button>

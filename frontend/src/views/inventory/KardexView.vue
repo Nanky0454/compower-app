@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command/index.js'
 import { Loader2, Check, ChevronsUpDown } from 'lucide-vue-next'
 
+
 const { getAccessTokenSilently } = useAuth0()
 
 // --- State ---
@@ -163,6 +164,7 @@ function clearFilters() {
             <TableHead class="w-[120px]">Fecha</TableHead>
             <TableHead>Producto</TableHead>
             <TableHead>Almacén</TableHead>
+            <TableHead>Site</TableHead>
             <TableHead>Tipo Movimiento</TableHead>
             <TableHead>Referencia</TableHead>
             <TableHead class="text-right">Cambio</TableHead>
@@ -184,6 +186,8 @@ function clearFilters() {
             </TableCell>
 
             <TableCell>{{ tx.warehouse_name }}</TableCell>
+
+            <TableCell>{{ tx.destination_external }}</TableCell>
 
             <TableCell class="whitespace-normal max-w-[120px]">
                 {{ tx.type }}
