@@ -57,7 +57,7 @@ const fetchUnits = async () => {
   isLoading.value = true
   try {
     const token = await getAccessTokenSilently()
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/api/units/`, {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/units/`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (res.ok) {
