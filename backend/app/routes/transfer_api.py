@@ -9,6 +9,9 @@ from ..models.stock_transfer import StockTransfer, StockTransferItem
 from ..models.inventory_models import InventoryStock, InventoryTransaction
 from ..models.product_catalog import Product
 from ..models.warehouse import Warehouse
+from ..models.stock_return import StockReturn, StockReturnItem
+from decimal import Decimal
+
 
 transfer_api = Blueprint('transfer_api', __name__)
 
@@ -163,4 +166,96 @@ def get_transfer_detail(transfer_id, payload):
         return jsonify(transfer.to_dict())
     except Exception as e:
         print(f"--- ERROR OBTENIENDO DETALLE DE TRANSFERENCIA: {e} ---")
+        return jsonify(error=str(e)), 500
+
+
+# --- RUTA 4: Devolver stock de una transferencia ---
+@transfer_api.route('/<int:transfer_id>/return', methods=['POST'])
+@requires_auth(required_permission='manage:transfers')
+def return_stock(transfer_id, payload):
+    data = request.get_json()
+    user_id = payload['sub']
+    items_to_return = data.get('items')
+
+    if not items_to_return:
+        return jsonify(error="No se especificaron items para devolver"), 400
+
+    try:
+        transfer = StockTransfer.query.get_or_404(transfer_id)
+        if transfer.status == 'Anulada':
+            return jsonify(error="No se puede devolver stock de una transferencia anulada"), 400
+
+        new_return = StockReturn(
+            transfer_id=transfer.id,
+            user_id=user_id
+        )
+        db.session.add(new_return)
+        db.session.flush()
+
+        for item_data in items_to_return:
+            transfer_item_id = item_data.get('id')
+            return_quantity = Decimal(item_data.get('return_quantity', 0))
+
+            if return_quantity <= 0:
+                continue
+
+            transfer_item = StockTransferItem.query.get(transfer_item_id)
+            if not transfer_item or transfer_item.transfer_id != transfer.id:
+                raise ValueError(f"Item de transferencia ID {transfer_item_id} no es válido para esta transferencia.")
+
+            # Validar que no se devuelve más de lo que se envió
+            available_to_return = transfer_item.quantity - transfer_item.returned_quantity
+            if return_quantity > available_to_return:
+                raise ValueError(f"Intenta devolver {return_quantity} pero solo puede devolver {available_to_return} para el producto {transfer_item.product.name}.")
+
+            # Actualizar la cantidad devuelta en el item de la transferencia
+            transfer_item.returned_quantity += return_quantity
+
+            # Crear el item de la devolución
+            return_item = StockReturnItem(
+                stock_return_id=new_return.id,
+                product_id=transfer_item.product_id,
+                quantity=return_quantity
+            )
+            db.session.add(return_item)
+
+            # Lógica de reingreso de stock al almacén de origen
+            stock_origen = InventoryStock.query.filter_by(
+                product_id=transfer_item.product_id,
+                warehouse_id=transfer.origin_warehouse_id
+            ).first()
+
+            if not stock_origen:
+                # Esto no debería pasar si la transferencia se hizo correctamente
+                stock_origen = InventoryStock(
+                    product_id=transfer_item.product_id,
+                    warehouse_id=transfer.origin_warehouse_id,
+                    quantity=0
+                )
+                db.session.add(stock_origen)
+
+            new_stock_quantity = stock_origen.quantity + return_quantity
+            stock_origen.quantity = new_stock_quantity
+
+            # Registrar la transacción de devolución en el kardex
+            trans_devolucion = InventoryTransaction(
+                product_id=transfer_item.product_id,
+                warehouse_id=transfer.origin_warehouse_id,
+                quantity_change=return_quantity,
+                new_quantity=new_stock_quantity,
+                type="Devolución de Stock",
+                user_id=user_id,
+                reference=f"Retorno de GRE-{transfer.gre_series}-{transfer.gre_number}"
+            )
+            db.session.add(trans_devolucion)
+
+        db.session.commit()
+        return jsonify(success=True, message="Stock devuelto correctamente."), 200
+
+    except ValueError as ve:
+        db.session.rollback()
+        return jsonify(error=str(ve)), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"--- ERROR AL DEVOLVER STOCK: {str(e)} ---")
         return jsonify(error=str(e)), 500

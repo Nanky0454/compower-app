@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card/index.js'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select/index.js'
 import { Button } from '@/components/ui/button/index.js'
+import { Checkbox } from '@/components/ui/checkbox/index.js'
 
 // --- NUEVOS IMPORTS PARA EL BUSCADOR ---
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover/index.js'
@@ -21,6 +22,7 @@ const warehouses = ref([])
 const isLoading = ref(true)
 const error = ref(null)
 const openProductSearch = ref(false) // Nuevo estado para el buscador
+const withDetails = ref(false) // Checkbox para detalles
 
 // --- Filters ---
 const filters = ref({
@@ -48,6 +50,8 @@ async function fetchKardex() {
   const params = new URLSearchParams()
   if (filters.value.product_id) params.append('product_id', filters.value.product_id)
   if (filters.value.warehouse_id) params.append('warehouse_id', filters.value.warehouse_id)
+  if (withDetails.value) params.append('with_details', 'true')
+
 
   transactions.value = await fetchData('el Kardex', `${import.meta.env.VITE_API_URL}/api/inventory/transactions?${params.toString()}`)
   isLoading.value = false
@@ -60,6 +64,8 @@ onMounted(async () => {
 })
 
 watch(filters, fetchKardex, { deep: true })
+watch(withDetails, fetchKardex)
+
 
 // --- Helpers ---
 function formatDate(dateString) {
@@ -75,9 +81,9 @@ function clearFilters() {
 
 <template>
   <div class="space-y-4">
-    <h2 class="text-2xl font-bold">Kardex de Inventario</h2>
+    <h2 class="text-2xl font-bold no-print">Kardex de Inventario</h2>
 
-    <Card class="p-4">
+    <Card class="p-4 no-print">
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
 
         <div class="flex flex-col space-y-1">
@@ -149,6 +155,11 @@ function clearFilters() {
         <div>
           <Button variant="outline" class="h-10" @click="clearFilters">Limpiar Filtros</Button>
         </div>
+
+        <div class="flex items-center space-x-2 pt-5">
+            <Checkbox id="withDetails" v-model:checked="withDetails" />
+            <label for="withDetails" class="text-sm font-medium">Con detalle (para imprimir)</label>
+        </div>
       </div>
     </Card>
 
@@ -172,40 +183,71 @@ function clearFilters() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-if="transactions.length === 0">
-            <TableCell colspan="7" class="text-center">No se encontraron movimientos.</TableCell>
-          </TableRow>
-          <TableRow v-for="tx in transactions" :key="tx.id">
-            <TableCell class="text-xs">{{ formatDate(tx.timestamp) }}</TableCell>
+          <template v-if="transactions.length === 0">
+              <TableRow>
+                <TableCell colspan="8" class="text-center">No se encontraron movimientos.</TableCell>
+              </TableRow>
+          </template>
+          <template v-for="tx in transactions" :key="tx.id">
+            <TableRow>
+                <TableCell class="text-xs">{{ formatDate(tx.timestamp) }}</TableCell>
 
-            <TableCell class="max-w-[150px] md:max-w-[250px]">
-              <div class="font-medium whitespace-normal break-words leading-tight">
-                {{ tx.product_name }}
-              </div>
-              <div class="text-xs text-gray-500 mt-1">{{ tx.product_sku }}</div>
-            </TableCell>
+                <TableCell class="max-w-[150px] md:max-w-[250px]">
+                  <div class="font-medium whitespace-normal break-words leading-tight">
+                    {{ tx.product_name }}
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">{{ tx.product_sku }}</div>
+                </TableCell>
 
-            <TableCell>{{ tx.warehouse_name }}</TableCell>
+                <TableCell>{{ tx.warehouse_name }}</TableCell>
 
-            <TableCell>{{ tx.destination_external }}</TableCell>
+                <TableCell>{{ tx.destination_external }}</TableCell>
 
-            <TableCell class="whitespace-normal max-w-[120px]">
-                {{ tx.type }}
-            </TableCell>
+                <TableCell class="whitespace-normal max-w-[120px]">
+                    {{ tx.type }}
+                </TableCell>
 
-            <TableCell class="max-w-[150px]">
-                <div class="whitespace-normal break-words text-sm">
-                    {{ tx.reference || '-' }}
-                </div>
-            </TableCell>
+                <TableCell class="max-w-[150px]">
+                    <div class="whitespace-normal break-words text-sm">
+                        {{ tx.reference || '-' }}
+                    </div>
+                </TableCell>
 
-            <TableCell :class="['text-right font-mono', tx.quantity_change > 0 ? 'text-green-600' : 'text-red-600']">
-              {{ tx.quantity_change > 0 ? '+' : '' }}{{ tx.quantity_change }}
-            </TableCell>
-            <TableCell class="text-right font-mono font-semibold">{{ tx.new_quantity }}</TableCell>
-          </TableRow>
+                <TableCell :class="['text-right font-mono', tx.quantity_change > 0 ? 'text-green-600' : 'text-red-600']">
+                  {{ tx.quantity_change > 0 ? '+' : '' }}{{ tx.quantity_change }}
+                </TableCell>
+                <TableCell class="text-right font-mono font-semibold">{{ tx.new_quantity }}</TableCell>
+            </TableRow>
+            <TableRow v-if="withDetails && tx.detailed_items && tx.detailed_items.length > 0" class="print-only">
+                <TableCell colspan="8">
+                    <div class="p-2 bg-gray-50">
+                        <h4 class="font-bold text-xs mb-1">Detalle del Movimiento:</h4>
+                        <ul class="list-disc pl-5 text-xs">
+                            <li v-for="item in tx.detailed_items" :key="item.id">
+                                {{ item.quantity }} x {{ item.product_name }} (SKU: {{ item.product_sku }})
+                            </li>
+                        </ul>
+                    </div>
+                </TableCell>
+            </TableRow>
+          </template>
         </TableBody>
       </Table>
     </Card>
   </div>
 </template>
+
+<style>
+.print-only {
+    display: none;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .print-only {
+        display: table-row !important;
+    }
+}
+</style>

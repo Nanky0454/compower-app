@@ -125,7 +125,7 @@ def get_transaction(id, payload):
     transaction = TreasuryTransaction.query.get_or_404(id)
     return jsonify(transaction.to_dict()), 200
 
-@treasury_api.route('/transactions', methods=['POST'])
+@treasury_api.route('/transactions', methods=['POST'], strict_slashes=False)
 @requires_auth(required_permission='manage:treasury')
 def create_transaction(payload):
     data = request.get_json()

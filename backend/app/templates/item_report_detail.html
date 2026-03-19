@@ -5,17 +5,17 @@
     <style>
         body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
         h1 { font-size: 18px; text-align: center; margin-bottom: 10px; }
-        h2 { font-size: 14px; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
-        h3 { font-size: 12px; margin-top: 10px; margin-bottom: 3px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        th, td { border: 1px solid #eee; padding: 4px; text-align: left; }
-        th { background-color: #f5f5f5; }
+
+        /* Estilos globales de la tabla de datos */
+        table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        table.data-table th, table.data-table td { border: 1px solid #ddd; padding: 5px; text-align: left; }
+        table.data-table th { background-color: #f5f5f5; font-weight: bold; }
+
         .header { text-align: center; margin-bottom: 20px; }
         .date-range { text-align: center; margin-bottom: 20px; font-size: 12px; }
-        .product-section { margin-bottom: 20px; border: 1px solid #eee; padding: 10px; }
-        .product-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .product-header div { font-weight: bold; }
-        .current-stock { float: right; font-weight: bold; }
+
+        /* Caja de cada producto (Evita cortes entre páginas) */
+        .product-section { margin-bottom: 20px; border: 1px solid #ccc; padding: 12px; page-break-inside: avoid; }
     </style>
 </head>
 <body>
@@ -27,34 +27,48 @@
     {% if data %}
         {% for product_data in data %}
             <div class="product-section">
-                <h2>
-                    {{ product_data.product_name }} ({{ product_data.product_sku }})
-                    <span class="current-stock">Stock Actual: {{ product_data.current_stock | round(2) }}</span>
-                </h2>
+
+                <table style="width: 100%; border: none; margin-bottom: 15px; table-layout: fixed; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 75%; border: none; padding: 0 10px 0 0; font-size: 13px; font-weight: bold; vertical-align: top; background: transparent;">
+                            {{ product_data.product_name }}<br>
+                            <span style="font-size: 10px; font-weight: normal; color: #555;">SKU: {{ product_data.product_sku }}</span>
+                        </td>
+                        <td style="width: 25%; border: none; padding: 0; font-size: 13px; font-weight: bold; text-align: right; vertical-align: top; background: transparent;">
+                            Stock Actual: {{ product_data.current_stock | round(2) }}
+                        </td>
+                    </tr>
+                </table>
 
                 {% if product_data.movements %}
-                    <table>
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th width="15%">Fecha</th>
                                 <th width="15%">Tipo</th>
-                                <th width="20%">Referencia</th>
-                                <th width="10%" style="text-align: right;">Cantidad</th>
+                                <th width="50%">Referencia</th>
+                                <th width="20%" style="text-align: right;">Cantidad</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for movement in product_data.movements %}
                                 <tr>
                                     <td>{{ movement.date }}</td>
-                                    <td>{{ movement.type }}</td>
+                                    <td>
+                                        {% if movement.type == 'ENTRADA' %}
+                                            <span style="color: #16a34a; font-weight: bold;">{{ movement.type }}</span>
+                                        {% else %}
+                                            <span style="color: #dc2626; font-weight: bold;">{{ movement.type }}</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ movement.reference }}</td>
-                                    <td style="text-align: right;">{{ movement.quantity | round(2) }}</td>
+                                    <td style="text-align: right; font-weight: bold;">{{ movement.quantity | round(2) }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 {% else %}
-                    <p>No se registraron movimientos para este item en el periodo seleccionado.</p>
+                    <p style="color: #666; font-style: italic; margin-top: 5px;">No se registraron movimientos para este item en el periodo seleccionado.</p>
                 {% endif %}
             </div>
         {% endfor %}

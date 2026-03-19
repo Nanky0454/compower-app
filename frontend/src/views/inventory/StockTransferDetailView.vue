@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card/index.js'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table/index.js'
 import { Badge } from '@/components/ui/badge/index.js'
+import { Button } from '@/components/ui/button/index.js'
+import { ArrowLeft } from 'lucide-vue-next'
 
 const route = useRoute()
+const router = useRouter()
 const { getAccessTokenSilently } = useAuth0()
 
 const transfer = ref(null)
@@ -40,6 +43,12 @@ function formatDate(dateString) {
 
 <template>
   <div>
+    <div class="mb-4">
+        <Button variant="outline" @click="router.go(-1)">
+            <ArrowLeft class="mr-2 h-4 w-4" />
+            Regresar
+        </Button>
+    </div>
     <div v-if="isLoading" class="text-center">Cargando detalle...</div>
     <div v-else-if="error" class="text-red-500 p-4 bg-red-50 rounded-md">{{ error }}</div>
 
@@ -58,7 +67,7 @@ function formatDate(dateString) {
         <CardHeader>
           <CardTitle>Información General</CardTitle>
         </CardHeader>
-        <CardContent class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CardContent class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <p class="text-sm font-medium text-gray-500">Almacén de Origen</p>
             <p class="font-semibold">{{ transfer.origin_warehouse }}</p>
@@ -73,6 +82,10 @@ function formatDate(dateString) {
             <p class="text-sm font-medium text-gray-500">Documento Asociado (GRE)</p>
             <p class="font-semibold">{{ transfer.gre_series }}-{{ transfer.gre_number }}</p>
           </div>
+          <div v-if="transfer.cost_center">
+            <p class="text-sm font-medium text-gray-500">Centro de Costo</p>
+            <p class="font-semibold">{{ transfer.cost_center }}</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -86,7 +99,9 @@ function formatDate(dateString) {
               <TableRow>
                 <TableHead>SKU</TableHead>
                 <TableHead>Producto</TableHead>
-                <TableHead class="text-right">Cantidad</TableHead>
+                <TableHead class="text-right">Cantidad Enviada</TableHead>
+                <TableHead class="text-right">Cantidad Devuelta</TableHead>
+                <TableHead class="text-right">Cantidad Neta Usada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -94,6 +109,8 @@ function formatDate(dateString) {
                 <TableCell>{{ item.product_sku }}</TableCell>
                 <TableCell class="font-medium">{{ item.product_name }}</TableCell>
                 <TableCell class="text-right">{{ item.quantity }}</TableCell>
+                <TableCell class="text-right">{{ item.returned_quantity }}</TableCell>
+                <TableCell class="text-right font-bold">{{ item.quantity - item.returned_quantity }}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

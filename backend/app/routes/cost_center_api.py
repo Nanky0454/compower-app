@@ -26,7 +26,7 @@ def get_cost_centers_with_budget(payload):
         consumption_query_st = db.session.query(
             StockTransfer.cost_center_id,
             func.sum(
-                cast(StockTransferItem.quantity, db.Numeric(10, 2)) *
+                (cast(StockTransferItem.quantity, db.Numeric(10, 2)) - func.coalesce(cast(StockTransferItem.returned_quantity, db.Numeric(10, 2)), 0)) *
                 cast(Product.standard_price, db.Numeric(10, 2))
             )
         ).join(StockTransferItem, StockTransfer.id == StockTransferItem.transfer_id) \
@@ -246,7 +246,8 @@ def get_cost_center_movements(cc_id, payload):
             for item in tr.items:
                 if tr.status == 'Completada (GRE Remitente)':
                     if item.product:
-                        total_valorizado += float(item.quantity) * float(item.product.standard_price)
+                        net_quantity = item.quantity - item.returned_quantity
+                        total_valorizado += float(net_quantity) * float(item.product.standard_price)
             print(f"Total de GRE: {total_valorizado}") # Moved outside the inner loop
             movements.append({
                 'id': f"GRE-{tr.id}",

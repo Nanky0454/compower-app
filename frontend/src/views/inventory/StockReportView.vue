@@ -22,7 +22,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { ArrowUpDown, ChevronDown, FileDown, Tags, Plus } from 'lucide-vue-next' // Plus ya estaba importado
 import LabelGenerator from '@/views/inventory/components/LabelGenerator.vue'
+import KardexView from './KardexView.vue'
 
+const activeTab = ref('reporte')
 const { getAccessTokenSilently } = useAuth0()
 const router = useRouter() // <--- 2. Inicializar router
 
@@ -300,197 +302,207 @@ function downloadExcel() {
   <div class="space-y-4">
     <h1 class="text-3xl font-bold print:hidden">Reportes y Maestro de Stock</h1>
 
-    <div class="flex items-center justify-between print:hidden">
-      <div class="flex items-center gap-2">
-        <Input
-          class="max-w-sm w-[300px]"
-          placeholder="Buscar por SKU o Producto..."
-          :model-value="globalFilter"
-          @update:model-value="globalFilter = $event"
-        />
-
-        <Input
-          class="max-w-sm"
-          placeholder="Filtrar por ubicación..."
-          :model-value="table.getColumn('product_location')?.getFilterValue()"
-          @update:model-value="table.getColumn('product_location')?.setFilterValue($event)"
-        />
-
-        <Select @update:model-value="handleWarehouseFilterChange">
-          <SelectTrigger class="w-[180px]">
-            <SelectValue placeholder="Todos los Almacenes" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los Almacenes</SelectItem>
-            <SelectItem v-for="wh in warehouses" :key="wh.id" :value="wh.name">
-              {{ wh.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" class="ml-auto">
-              Categorías <ChevronDown class="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="max-h-[400px] overflow-y-auto">
-            <template v-for="level1 in nestedCategories" :key="level1.id">
-                <DropdownMenuItem class="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-100">
-                    <input type="checkbox" :checked="isCategorySelected(level1.id)" @click.stop="handleToggle(level1)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"/>
-                    <span @click.prevent="handleToggle(level1)" class="capitalize font-bold flex-grow ml-2">{{ level1.name }}</span>
-                </DropdownMenuItem>
-                <template v-for="level2 in level1.children" :key="level2.id">
-                    <DropdownMenuItem class="flex items-center justify-between p-2 ml-4 cursor-pointer hover:bg-gray-100">
-                        <input type="checkbox" :checked="isCategorySelected(level2.id)" @click.stop="handleToggle(level2)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"/>
-                        <span @click.prevent="handleToggle(level2)" class="capitalize flex-grow ml-2 font-medium">{{ level2.name }}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem v-for="level3 in level2.children" :key="level3.id" class="flex items-center justify-between p-2 ml-8 cursor-pointer hover:bg-gray-100">
-                        <input type="checkbox" :checked="isCategorySelected(level3.id)" @click.stop="handleToggle(level3)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"/>
-                        <span @click.prevent="handleToggle(level3)" class="capitalize flex-grow ml-2 text-gray-600">{{ level3.name }}</span>
-                    </DropdownMenuItem>
-                </template>
-                <DropdownMenuSeparator />
-            </template>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <Button
-          @click="router.push({ name: 'RegisterInventoryView' })"
-          class="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          <Plus class="mr-2 h-4 w-4" />
-          Registrar Inventario
-        </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" class="ml-auto">
-              Columnas <ChevronDown class="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              v-for="column in table.getAllColumns().filter((column) => column.getCanHide())"
-              :key="column.id"
-              class="flex items-center space-x-2"
-            >
-              <input
-                type="checkbox"
-                :id="`column-toggle-${column.id}`"
-                :checked="column.getIsVisible()"
-                @change="(e) => column.toggleVisibility(e.target.checked)"
-                @click.stop
-                class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <label :for="`column-toggle-${column.id}`" class="text-sm cursor-pointer" @click.stop>
-                {{ column.columnDef.label }}
-              </label>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Button variant="outline" @click="downloadExcel">
-          <FileDown class="mr-2 h-4 w-4" />
-          Descargar Excel
-        </Button>
-
-        <Dialog v-model:open="showLabelGeneratorDialog">
-          <DialogTrigger as-child>
-            <Button variant="outline">
-              <Tags class="mr-2 h-4 w-4" />
-              Generar Etiquetas
-            </Button>
-          </DialogTrigger>
-          <LabelGenerator />
-        </Dialog>
-      </div>
+    <div class="flex space-x-2 border-b">
+      <Button :variant="activeTab === 'reporte' ? 'secondary' : 'ghost'" @click="activeTab = 'reporte'">Reporte de Stock</Button>
+      <Button :variant="activeTab === 'kardex' ? 'secondary' : 'ghost'" @click="activeTab = 'kardex'">Kardex</Button>
     </div>
 
-    <div v-if="isLoading">Cargando reporte...</div>
-    <div v-else-if="error" class="text-red-500">{{ error }}</div>
+    <div v-if="activeTab === 'reporte'">
+      <div class="flex items-center justify-between print:hidden">
+        <div class="flex items-center gap-2">
+          <Input
+            class="max-w-sm w-[300px]"
+            placeholder="Buscar por SKU o Producto..."
+            :model-value="globalFilter"
+            @update:model-value="globalFilter = $event"
+          />
 
-    <Card v-else class="print:border-none print:shadow-none print:overflow-visible print:block overflow-hidden">
-      <div class="relative w-full overflow-auto print:overflow-visible print:h-auto">
-        <Table class="w-full text-sm">
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="print:border-b-2 print:border-black">
-              <TableHead
-                v-for="header in headerGroup.headers"
-                :key="header.id"
-                class="text-center print:text-black print:font-bold print:whitespace-normal"
+          <Input
+            class="max-w-sm"
+            placeholder="Filtrar por ubicación..."
+            :model-value="table.getColumn('product_location')?.getFilterValue()"
+            @update:model-value="table.getColumn('product_location')?.setFilterValue($event)"
+          />
+
+          <Select @update:model-value="handleWarehouseFilterChange">
+            <SelectTrigger class="w-[180px]">
+              <SelectValue placeholder="Todos los Almacenes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los Almacenes</SelectItem>
+              <SelectItem v-for="wh in warehouses" :key="wh.id" :value="wh.name">
+                {{ wh.name }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" class="ml-auto">
+                Categorías <ChevronDown class="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="max-h-[400px] overflow-y-auto">
+              <template v-for="level1 in nestedCategories" :key="level1.id">
+                  <DropdownMenuItem class="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-100">
+                      <input type="checkbox" :checked="isCategorySelected(level1.id)" @click.stop="handleToggle(level1)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"/>
+                      <span @click.prevent="handleToggle(level1)" class="capitalize font-bold flex-grow ml-2">{{ level1.name }}</span>
+                  </DropdownMenuItem>
+                  <template v-for="level2 in level1.children" :key="level2.id">
+                      <DropdownMenuItem class="flex items-center justify-between p-2 ml-4 cursor-pointer hover:bg-gray-100">
+                          <input type="checkbox" :checked="isCategorySelected(level2.id)" @click.stop="handleToggle(level2)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"/>
+                          <span @click.prevent="handleToggle(level2)" class="capitalize flex-grow ml-2 font-medium">{{ level2.name }}</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-for="level3 in level2.children" :key="level3.id" class="flex items-center justify-between p-2 ml-8 cursor-pointer hover:bg-gray-100">
+                          <input type="checkbox" :checked="isCategorySelected(level3.id)" @click.stop="handleToggle(level3)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"/>
+                          <span @click.prevent="handleToggle(level3)" class="capitalize flex-grow ml-2 text-gray-600">{{ level3.name }}</span>
+                      </DropdownMenuItem>
+                  </template>
+                  <DropdownMenuSeparator />
+              </template>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Button
+            @click="router.push({ name: 'RegisterInventoryView' })"
+            class="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus class="mr-2 h-4 w-4" />
+            Registrar Inventario
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" class="ml-auto">
+                Columnas <ChevronDown class="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                v-for="column in table.getAllColumns().filter((column) => column.getCanHide())"
+                :key="column.id"
+                class="flex items-center space-x-2"
               >
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
+                <input
+                  type="checkbox"
+                  :id="`column-toggle-${column.id}`"
+                  :checked="column.getIsVisible()"
+                  @change="(e) => column.toggleVisibility(e.target.checked)"
+                  @click.stop
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-         <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() && 'selected'"
-                class="print:border-b print:border-gray-300 justify-center"
-              >
-                <TableCell
-                    v-for="cell in row.getVisibleCells()"
-                    :key="cell.id"
-                    class="print:p-1 print:align-top print:whitespace-normal print:break-words print:text-xs"
-                    :class="{
-                        'whitespace-normal min-w-[250px]': cell.column.id === 'product_name',
-                        'whitespace-normal min-w-[150px]': cell.column.id === 'product_location'
-                    }"
-                >
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center print:p-1">
-                  No hay resultados.
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
-      </div>
-    </Card>
+                <label :for="`column-toggle-${column.id}`" class="text-sm cursor-pointer" @click.stop>
+                  {{ column.columnDef.label }}
+                </label>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-    <div class="flex items-center justify-between py-4 print:hidden">
-      <div class="flex-1 text-sm text-muted-foreground">
-        {{ table.getFilteredRowModel().rows.length }} de {{ data.length }} fila(s) totales.
+          <Button variant="outline" @click="downloadExcel">
+            <FileDown class="mr-2 h-4 w-4" />
+            Descargar Excel
+          </Button>
+
+          <Dialog v-model:open="showLabelGeneratorDialog">
+            <DialogTrigger as-child>
+              <Button variant="outline">
+                <Tags class="mr-2 h-4 w-4" />
+                Generar Etiquetas
+              </Button>
+            </DialogTrigger>
+            <LabelGenerator />
+          </Dialog>
+        </div>
       </div>
-      <div class="font-bold text-lg hidden sm:block">
-        Valor Total Filtrado: {{ totalValue }}
+
+      <div v-if="isLoading">Cargando reporte...</div>
+      <div v-else-if="error" class="text-red-500">{{ error }}</div>
+
+      <Card v-else class="print:border-none print:shadow-none print:overflow-visible print:block overflow-hidden">
+        <div class="relative w-full overflow-auto print:overflow-visible print:h-auto">
+          <Table class="w-full text-sm">
+            <TableHeader>
+              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="print:border-b-2 print:border-black">
+                <TableHead
+                  v-for="header in headerGroup.headers"
+                  :key="header.id"
+                  class="text-center print:text-black print:font-bold print:whitespace-normal"
+                >
+                  <FlexRender
+                    v-if="!header.isPlaceholder"
+                    :render="header.column.columnDef.header"
+                    :props="header.getContext()"
+                  />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+           <TableBody>
+              <template v-if="table.getRowModel().rows?.length">
+                <TableRow
+                  v-for="row in table.getRowModel().rows"
+                  :key="row.id"
+                  :data-state="row.getIsSelected() && 'selected'"
+                  class="print:border-b print:border-gray-300 justify-center"
+                >
+                  <TableCell
+                      v-for="cell in row.getVisibleCells()"
+                      :key="cell.id"
+                      class="print:p-1 print:align-top print:whitespace-normal print:break-words print:text-xs"
+                      :class="{
+                          'whitespace-normal min-w-[250px]': cell.column.id === 'product_name',
+                          'whitespace-normal min-w-[150px]': cell.column.id === 'product_location'
+                      }"
+                  >
+                    <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                  </TableCell>
+                </TableRow>
+              </template>
+              <template v-else>
+                <TableRow>
+                  <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center print:p-1">
+                    No hay resultados.
+                  </TableCell>
+                </TableRow>
+              </template>
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+
+      <div class="flex items-center justify-between py-4 print:hidden">
+        <div class="flex-1 text-sm text-muted-foreground">
+          {{ table.getFilteredRowModel().rows.length }} de {{ data.length }} fila(s) totales.
+        </div>
+        <div class="font-bold text-lg hidden sm:block">
+          Valor Total Filtrado: {{ totalValue }}
+        </div>
+        <div class="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="!table.getCanPreviousPage()"
+            @click="table.previousPage()"
+          >
+            Anterior
+          </Button>
+          <span class="text-sm">
+            Página {{ table.getState().pagination.pageIndex + 1 }} de {{ table.getPageCount() }}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="!table.getCanNextPage()"
+            @click="table.nextPage()"
+          >
+            Siguiente
+          </Button>
+        </div>
       </div>
-      <div class="flex items-center space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!table.getCanPreviousPage()"
-          @click="table.previousPage()"
-        >
-          Anterior
-        </Button>
-        <span class="text-sm">
-          Página {{ table.getState().pagination.pageIndex + 1 }} de {{ table.getPageCount() }}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!table.getCanNextPage()"
-          @click="table.nextPage()"
-        >
-          Siguiente
-        </Button>
-      </div>
+    </div>
+    <div v-if="activeTab === 'kardex'">
+      <KardexView />
     </div>
   </div>
 </template>

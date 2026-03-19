@@ -237,10 +237,11 @@ watch(
                     <RouterLink to="/inventory" v-slot="{ href, navigate, isActive }">
                       <Button
                           :variant="isActive ? 'secondary' : 'ghost'"
-                          class="w-full h-8 flex items-center justify-between px-2"
+                          class="w-full h-8 flex items-center justify-start"
                           @click="navigate"
                       >
-                        <span>Recepcion</span>
+                        <span class="flex-1 text-left">Recepcion</span>
+
                         <span
                           v-if="pendingPurchasesCount > 0"
                           class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2 h-5 min-w-[20px] flex items-center justify-center shadow-sm"
@@ -261,7 +262,7 @@ watch(
                   <li v-if="userPermissions.includes('manage:transfers')">
                     <RouterLink to="/inventory/transfers" v-slot="{ href, navigate, isActive }">
                       <Button :variant="isActive ? 'secondary' : 'ghost'" class="w-full justify-start h-8" @click="navigate">
-                        Transferencias
+                        Guías de remisión
                       </Button>
                     </RouterLink>
                   </li>

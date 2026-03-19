@@ -4,12 +4,111 @@ from datetime import datetime, time as time_obj
 from weasyprint import HTML
 from ..models.inventory_models import InventoryTransaction
 from ..models.product_catalog import Product, UnitMeasure
-from ..models.warehouse import Warehouse 
+from ..models.warehouse import Warehouse
+from ..models.stock_transfer import StockTransfer
+from ..models.cost_center import CostCenter
 from ..extensions import db
 
 stock_transfer_report_api = Blueprint('stock_transfer_report_api', __name__)
 
 
+@stock_transfer_report_api.route('/reports/stock-transfers/print', methods=['GET'])
+def print_stock_transfer_report():
+    try:
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        warehouse_id = request.args.get('warehouse_id')
+        with_details = request.args.get('with_details', 'true') == 'true'
+
+        if not start_date_str or not end_date_str:
+            return "<h1>Error: Fechas requeridas</h1>", 400
+
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time_obj.max)
+        
+        report_data = []
+        title = "Reporte de Movimientos (Kardex)"
+
+        if with_details:
+            title = "Reporte Detallado de Movimientos (Kardex)"
+            query = db.session.query(
+                InventoryTransaction,
+                Product.name,
+                Product.sku,
+                Warehouse.name.label('warehouse_name'),
+                StockTransfer.destination_external_address,
+                CostCenter.code.label('cost_center_code')
+            ).select_from(InventoryTransaction)\
+             .join(Product, InventoryTransaction.product_id == Product.id)\
+             .join(Warehouse, InventoryTransaction.warehouse_id == Warehouse.id)\
+             .outerjoin(StockTransfer, and_(
+                 StockTransfer.gre_series == func.substr(InventoryTransaction.reference, 5, 4),
+                 StockTransfer.gre_number == func.substr(InventoryTransaction.reference, 10)
+             ))\
+             .outerjoin(CostCenter, StockTransfer.cost_center_id == CostCenter.id)\
+             .filter(InventoryTransaction.timestamp.between(start_date, end_date))
+
+            if warehouse_id:
+                query = query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+
+            transactions = query.all()
+
+            for tx, product_name, product_sku, warehouse_name, dest, cc_code in transactions:
+                report_data.append({
+                    'date': tx.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                    'product_name': product_name,
+                    'product_sku': product_sku,
+                    'warehouse_name': warehouse_name,
+                    'site': dest or '-',
+                    'cost_center': cc_code or '-',
+                    'type': tx.type,
+                    'reference': tx.reference,
+                    'quantity_change': tx.quantity_change,
+                    'new_quantity': tx.new_quantity
+                })
+        else:
+            title = "Reporte Resumido de Movimientos (Kardex)"
+            query = db.session.query(
+                Product.sku,
+                Product.name,
+                func.sum(case(
+                    (InventoryTransaction.quantity_change > 0, InventoryTransaction.quantity_change),
+                    else_=0
+                )).label('entries'),
+                func.sum(case(
+                    (InventoryTransaction.quantity_change < 0, func.abs(InventoryTransaction.quantity_change)),
+                    else_=0
+                )).label('exits')
+            ).join(InventoryTransaction, InventoryTransaction.product_id == Product.id)\
+             .filter(InventoryTransaction.timestamp.between(start_date, end_date))
+            
+            if warehouse_id:
+                query = query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+
+            results = query.group_by(Product.id).order_by(Product.sku).all()
+            for row in results:
+                if row.entries == 0 and row.exits == 0:
+                    continue
+                report_data.append({
+                    'codigo': row.sku,
+                    'descripcion': row.name,
+                    'entradas': float(row.entries or 0),
+                    'salidas': float(row.exits or 0)
+                })
+
+        html = render_template('stock_transfer_report_print.html',
+                               data=report_data,
+                               with_details=with_details,
+                               title=title,
+                               start_date=start_date.strftime('%d/%m/%Y'),
+                               end_date=end_date.strftime('%d/%m/%Y'))
+        return html
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"<h1>Error al generar el reporte: {e}</h1>", 500
+		
 @stock_transfer_report_api.route('/reports/stock-transfers', methods=['GET'])
 def get_stock_transfer_report():
     try:

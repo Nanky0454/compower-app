@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
+        h1 { font-size: 18px; text-align: center; margin-bottom: 5px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .date-range { font-size: 12px; color: #555; }
+
+        .product-section { margin-bottom: 25px; border: 1px solid #ccc; padding: 12px; page-break-inside: avoid; }
+        .product-title { font-size: 14px; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #eee; padding: 5px; text-align: left; }
+        th { background-color: #f9f9f9; font-weight: bold; }
+
+        .text-right { text-align: right; }
+        .entrada { color: #16a34a; font-weight: bold; }
+        .salida { color: #dc2626; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <p class="date-range">Periodo: {{ start_date }} - {{ end_date }} | Generado: {{ current_date }}</p>
+    </div>
+
+    {% if data %}
+        {% for producto in data %}
+            <div class="product-section">
+                <div class="product-title">
+                    {{ producto.product_name }} <span style="font-weight: normal; color: #666;">(SKU: {{ producto.product_sku }})</span>
+                </div>
+
+                {% if producto.movements %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th width="15%">Fecha</th>
+                                <th width="10%">Tipo</th>
+                                <th width="20%">Referencia</th>
+                                <th width="20%">Site</th>
+                                <th width="15%">C. Costo</th>
+                                <th width="10%" class="text-right">Cambio</th>
+                                <th width="10%" class="text-right">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mov in producto.movements %}
+                                <tr>
+                                    <td>{{ mov.date }}</td>
+                                    <td>
+                                        <span class="{% if mov.type == 'ENTRADA' %}entrada{% else %}salida{% endif %}">
+                                            {{ mov.type }}
+                                        </span>
+                                    </td>
+                                    <td>{{ mov.reference }}</td>
+                                    <td>{{ mov.site }}</td>
+                                    <td>{{ mov.cc }}</td>
+                                    <td class="text-right font-bold">{{ mov.quantity }}</td>
+                                    <td class="text-right">{{ mov.saldo }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p style="color: #666; font-style: italic;">No hay movimientos en este periodo.</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No se encontraron datos detallados para los filtros seleccionados.</p>
+    {% endif %}
+</body>
+</html>

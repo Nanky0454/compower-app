@@ -1,6 +1,10 @@
+import re
+import json
+import traceback
+
 from flask import request, jsonify, render_template, current_app, send_file, Blueprint
 from flask_cors import cross_origin
-from sqlalchemy import func, case, and_, cast, String
+from sqlalchemy import func, case, and_, cast, String, join
 from sqlalchemy.orm import joinedload
 from datetime import datetime, time as time_obj
 import io
@@ -100,6 +104,186 @@ def get_stock_movement_report():
                          download_name='Stock_Reporte.pdf')
 
 
+@report_api.route('/stock-movement/print', methods=['GET'])
+def print_stock_movement_report():
+    # 1. Obtener filtros
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    warehouse_id = request.args.get('warehouse_id')
+    product_id = request.args.get('product_id')
+    with_details = request.args.get('with_details', 'true') == 'true'
+
+    if not start_date_str or not end_date_str:
+        return jsonify({"error": "Fechas requeridas"}), 400
+
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+    end_date = datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time_obj.max)
+
+    try:
+        # ==========================================
+        # VERSIÓN 1: REPORTE DETALLADO
+        # ==========================================
+        if with_details:
+            title = "Reporte de Kardex Detallado"
+
+            # Consultamos las transacciones con sus relaciones
+            query = db.session.query(InventoryTransaction).options(
+                joinedload(InventoryTransaction.product),
+                joinedload(InventoryTransaction.warehouse)
+            ).order_by(InventoryTransaction.timestamp.asc())
+
+            if product_id:
+                query = query.filter(InventoryTransaction.product_id == product_id)
+            if warehouse_id:
+                query = query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+
+            query = query.filter(InventoryTransaction.timestamp.between(start_date, end_date))
+            transactions = query.all()
+
+            # Agrupamos los datos por Producto
+            grouped_data = {}
+            for t in transactions:
+                prod_id = t.product_id
+
+                if prod_id not in grouped_data:
+                    grouped_data[prod_id] = {
+                        'product_name': t.product.name if t.product else 'Desconocido',
+                        'product_sku': t.product.sku if t.product else 'S/N',
+                        'movements': []
+                    }
+
+                site_name = "-"
+                cost_center_name = "-"
+                if t.reference and 'GRE' in t.reference:
+                    match_gre = re.search(r'([A-Z0-9]+)-(\d+)', t.reference)
+                    if match_gre:
+                        serie, numero = match_gre.groups()
+                        transfer = StockTransfer.query.filter_by(gre_series=serie, gre_number=numero).first()
+                        if transfer:
+                            site_name = transfer.destination_external_address or "-"
+                            cost_center_name = transfer.cost_center.code if transfer.cost_center else "-"
+
+                qty_change = float(t.quantity_change or 0)
+                tipo_mov = "ENTRADA" if qty_change > 0 else "SALIDA"
+
+                # VALIDACIÓN CRÍTICA DE FECHA
+                fecha_formateada = "-"
+                if t.timestamp:
+                    if isinstance(t.timestamp, str):
+                        fecha_formateada = t.timestamp[:16]
+                    else:
+                        fecha_formateada = t.timestamp.strftime('%Y-%m-%d %H:%M')
+
+                grouped_data[prod_id]['movements'].append({
+                    'date': fecha_formateada,
+                    'type': tipo_mov,
+                    'reference': t.reference or t.type,
+                    'site': site_name,
+                    'cc': cost_center_name,
+                    'quantity': abs(qty_change),
+                    'saldo': float(t.new_quantity or 0)
+                })
+
+            report_data = list(grouped_data.values())
+            nombre_plantilla = 'stock_report_detailed.html'
+
+        # ==========================================
+        # VERSIÓN 2: REPORTE RESUMIDO
+        # ==========================================
+        else:
+            title = "Reporte de Kardex Resumido"
+
+            query = db.session.query(
+                Product.sku, Product.name,
+                func.sum(case((and_(InventoryTransaction.timestamp.between(start_date, end_date),
+                                    InventoryTransaction.quantity_change > 0), InventoryTransaction.quantity_change),
+                              else_=0)).label('entries'),
+                func.sum(case((and_(InventoryTransaction.timestamp.between(start_date, end_date),
+                                    InventoryTransaction.quantity_change < 0),
+                               func.abs(InventoryTransaction.quantity_change)), else_=0)).label('exits')
+            ).join(InventoryTransaction, InventoryTransaction.product_id == Product.id)
+
+            if warehouse_id:
+                query = query.filter(InventoryTransaction.warehouse_id == warehouse_id)
+            if product_id:
+                query = query.filter(InventoryTransaction.product_id == product_id)
+
+            results = query.group_by(Product.id).order_by(Product.sku).all()
+
+            report_data = []
+            for row in results:
+                report_data.append({
+                    'codigo': row.sku,
+                    'descripcion': row.name,
+                    'entradas': float(row.entries or 0),
+                    'salidas': float(row.exits or 0),
+                })
+
+            nombre_plantilla = 'stock_report_summarized.html'
+
+        # ==========================================
+        # 🔍 INSPECTOR DE DATOS (LOGS EN CONSOLA) 🔍
+        # ==========================================
+        print("\n" + "=" * 60)
+        print("🕵️‍♂️ DEBUG: INICIANDO GENERACIÓN DE REPORTE 🕵️‍♂️")
+        print(f"Plantilla seleccionada: {nombre_plantilla}")
+        print(f"Cantidad de registros agrupados a procesar: {len(report_data)}")
+
+        if len(report_data) > 0:
+            print("\n--- Muestra del PRIMER registro que se enviará al HTML ---")
+            print(json.dumps(report_data[0], indent=2, default=str))
+        else:
+            print("\n--- ADVERTENCIA: report_data está VACÍO ---")
+        print("=" * 60 + "\n")
+
+        # ==========================================
+        # PASO A: RENDERIZAR HTML
+        # ==========================================
+        try:
+            print("⏳ Paso 1: Intentando renderizar el HTML...")
+            html = render_template(nombre_plantilla,
+                                   data=report_data,
+                                   title=title,
+                                   start_date=start_date.strftime('%d/%m/%Y'),
+                                   end_date=end_date.strftime('%d/%m/%Y'),
+                                   current_date=datetime.now().strftime('%d/%m/%Y %H:%M'))
+            print("✅ Paso 1 Exitoso: HTML generado en memoria.")
+        except Exception as e:
+            print("\n❌ ERROR CRÍTICO AL RENDERIZAR LA PLANTILLA ❌")
+            print(traceback.format_exc())
+            return jsonify({"error": "Falló la plantilla HTML", "detalle": str(e)}), 500
+
+        # ==========================================
+        # PASO B: CONVERTIR A PDF (WEASYPRINT)
+        # ==========================================
+        try:
+            print("⏳ Paso 2: Intentando convertir HTML a PDF con WeasyPrint...")
+            pdf = HTML(string=html).write_pdf()
+            print("✅ Paso 2 Exitoso: PDF generado en memoria.")
+        except Exception as e:
+            print("\n❌ ERROR CRÍTICO EN WEASYPRINT ❌")
+            print(traceback.format_exc())
+            return jsonify({"error": "Falló WeasyPrint", "detalle": str(e)}), 500
+
+        # ==========================================
+        # PASO C: ENVIAR ARCHIVO
+        # ==========================================
+        tipo_reporte = "Detallado" if with_details else "Resumido"
+        nombre_archivo = f"Kardex_{tipo_reporte}_{start_date.strftime('%Y-%m-%d')}.pdf"
+
+        print("🚀 ¡Todo listo! Enviando PDF al cliente...\n")
+        return send_file(
+            io.BytesIO(pdf),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=nombre_archivo
+        )
+
+    except Exception as e:
+        print("\n❌ ERROR GENERAL FUERA DE LA GENERACIÓN ❌")
+        print(traceback.format_exc())
+        return jsonify({"error": "Fallo general", "detalle": str(e)}), 500
+
 @report_api.route('/item-movement-report', methods=['GET'])
 def get_item_movement_report():
     # 1. Obtener filtros
@@ -127,10 +311,10 @@ def get_item_movement_report():
         current_stock = db.session.query(func.sum(InventoryStock.quantity)).filter_by(product_id=product_id).scalar() or 0
         movements = []
 
-        entries = db.session.query(ProductReceiptItem, ProductReceipt)\
-            .join(ProductReceipt, ProductReceiptItem.receipt_id == ProductReceipt.id)\
-            .filter(ProductReceiptItem.product_id == product_id)\
-            .filter(ProductReceipt.receipt_date.between(start_date, end_date))\
+        entries = db.session.query(ProductReceiptItem, ProductReceipt) \
+            .join(ProductReceipt, ProductReceiptItem.receipt_id == ProductReceipt.id) \
+            .filter(ProductReceiptItem.product_id == product_id) \
+            .filter(ProductReceipt.receipt_date.between(start_date, end_date)) \
             .all()
 
         for item, receipt in entries:
@@ -141,12 +325,12 @@ def get_item_movement_report():
                 'reference': f"Factura: {receipt.invoice_number or 'S/N'}"
             })
 
-        exits = db.session.query(StockTransferItem, StockTransfer)\
-            .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id)\
-            .filter(StockTransferItem.product_id == product_id)\
-            .filter(StockTransfer.status != 'Anulada')\
-            .filter(StockTransfer.transfer_date.between(start_date, end_date))\
-            .options(joinedload(StockTransfer.cost_center))\
+        exits = db.session.query(StockTransferItem, StockTransfer) \
+            .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id) \
+            .filter(StockTransferItem.product_id == product_id) \
+            .filter(StockTransfer.status != 'Anulada') \
+            .filter(StockTransfer.transfer_date.between(start_date, end_date)) \
+            .options(joinedload(StockTransfer.cost_center)) \
             .all()
 
         for item, transfer in exits:
@@ -186,12 +370,12 @@ def get_gre_by_cost_center():
         end_date = request.args.get('end_date')
         format_type = request.args.get('format', 'json')
 
-        query = db.session.query(CostCenter, Gre) \
-            .join(StockTransfer, StockTransfer.cost_center_id == CostCenter.id) \
-            .join(Gre, and_(
-            Gre.serie == StockTransfer.gre_series,
+        query = db.session.query(CostCenter, Gre)  \
+            .join(StockTransfer, StockTransfer.cost_center_id == CostCenter.id)  \
+            .join(Gre, and_( \
+            Gre.serie == StockTransfer.gre_series, \
             cast(Gre.numero, String) == StockTransfer.gre_number
-        )) \
+        ))  \
             .options(joinedload(Gre.items).joinedload(GreDetail.product))
 
         query = query.filter(
@@ -320,16 +504,16 @@ def get_provider_sites_report():
         Product.standard_price.label('unit_price'),
         Product.name.label('product_name'),
         StockTransfer.destination_external_address.label('site_name')
-    ).select_from(StockTransferItem)\
-     .join(Product, StockTransferItem.product_id == Product.id)\
-     .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id)\
-     .join(Gre, and_(
+    ).select_from(StockTransferItem) \
+    .join(Product, StockTransferItem.product_id == Product.id) \
+    .join(StockTransfer, StockTransferItem.transfer_id == StockTransfer.id) \
+    .join(Gre, and_(
          Gre.serie == StockTransfer.gre_series,
          cast(Gre.numero, String) == StockTransfer.gre_number
-     ))\
-     .filter(StockTransfer.destination_external_address.in_(selected_site_names))\
-     .filter(StockTransfer.status != 'Anulada')\
-     .filter(Gre.gre_type == 'remitente')\
+     )) \
+     .filter(StockTransfer.destination_external_address.in_(selected_site_names)) \
+     .filter(StockTransfer.status != 'Anulada') \
+     .filter(Gre.gre_type == 'remitente') \
      .all()
 
     report_data = {}

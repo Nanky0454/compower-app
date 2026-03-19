@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .text-right {
+            text-align: right;
+        }
+        @page {
+            size: A4 landscape;
+            margin: 1cm;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <p>Periodo: {{ start_date }} - {{ end_date }}</p>
+
+    {% if with_details %}
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Producto</th>
+                <th>Almacén</th>
+                <th>Site</th>
+                <th>C. Costo</th>
+                <th>Tipo Movimiento</th>
+                <th>Referencia</th>
+                <th class="text-right">Cambio</th>
+                <th class="text-right">Saldo</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in data %}
+            <tr>
+                <td>{{ tx.date }}</td>
+                <td>{{ tx.product_name }} ({{ tx.product_sku }})</td>
+                <td>{{ tx.warehouse_name }}</td>
+                <td>{{ tx.site }}</td>
+                <td>{{ tx.cost_center }}</td>
+                <td>{{ tx.type }}</td>
+                <td>{{ tx.reference }}</td>
+                <td class="text-right">{{ tx.quantity_change }}</td>
+                <td class="text-right">{{ tx.new_quantity }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <table>
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Producto</th>
+                <th class="text-right">Total Entradas</th>
+                <th class="text-right">Total Salidas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in data %}
+            <tr>
+                <td>{{ item.codigo }}</td>
+                <td>{{ item.descripcion }}</td>
+                <td class="text-right">{{ item.entradas }}</td>
+                <td class="text-right">{{ item.salidas }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+</body>
+</html>

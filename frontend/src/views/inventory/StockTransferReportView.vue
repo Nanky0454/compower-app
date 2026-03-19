@@ -31,6 +31,7 @@ const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString()
 const warehouses = ref([])
 const stockReportData = ref([])
 const isLoadingStock = ref(false)
+const with_details = ref(true)
 
 const stockFilters = ref({
     start_date: firstDay,
@@ -97,6 +98,62 @@ async function generateStockReport(format = 'json') {
     }
 }
 
+async function printStockReport() {
+    isLoadingStock.value = true
+    try {
+        const token = await getAccessTokenSilently()
+        const params = new URLSearchParams()
+
+        params.append('start_date', stockFilters.value.start_date)
+        params.append('end_date', stockFilters.value.end_date)
+
+        if (stockFilters.value.warehouse_id !== 'all') {
+            params.append('warehouse_id', stockFilters.value.warehouse_id)
+        }
+
+        // Forzamos explícitamente a que se envíe como texto 'true' o 'false'
+        params.append('with_details', with_details.value ? 'true' : 'false')
+
+        const printUrl = `${import.meta.env.VITE_API_URL}/api/reports/stock-movement/print?${params.toString()}`
+
+        // Usamos fetch para enviar el Token de seguridad y obtener el archivo por debajo
+        const response = await fetch(printUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+
+        // --- ESTE ES EL ESCUDO ---
+        if (!response.ok) {
+            const errorText = await response.text(); // Leemos el error real de Python
+            console.error("ERROR CRÍTICO DEL BACKEND:", errorText);
+            alert("Error en el servidor al generar el PDF. Presiona F12 y mira la Consola.");
+            isLoadingStock.value = false;
+            return; // DETENEMOS LA DESCARGA DEL PDF ROTO
+        }
+        // -------------------------
+
+        // Convertimos la respuesta en un archivo (Blob)
+        const blob = await response.blob()
+        const urlBlob = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = urlBlob
+
+        // Nombre dinámico según si es con detalle o no
+        const tipoReporte = with_details.value ? 'Detallado' : 'Resumido'
+        a.download = `Kardex_${tipoReporte}_${stockFilters.value.start_date}.pdf`
+
+        // Forzamos la descarga silenciosa
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(urlBlob) // Limpiamos memoria
+
+    } catch (e) {
+        console.error(e)
+        alert("Error: " + e.message)
+    } finally {
+        isLoadingStock.value = false
+    }
+}
 
 // =========================================================
 // LÓGICA TAB 2: REPORTE DE COSTOS
@@ -272,7 +329,7 @@ async function fetchProviders() {
             providers.value = await response.json()
         }
     } catch (e) {
-        console.error("Error cargando proveedores:", e)
+        console.error("Error cargando clientes:", e)
     }
 }
 
@@ -332,13 +389,13 @@ function toggleSite(siteId) {
     }
 }
 
-const selectedSitesDetails = computed(() => {
-    return sites.value.filter(s => providerFilters.value.selectedSites.includes(s.id))
-})
+//const selectedSitesDetails = computed(() => {
+//    return sites.value.filter(s => providerFilters.value.selectedSites.includes(s.id))
+//})
 
 async function generateProviderReport(format = 'json') {
     if (!providerFilters.value.provider_id || providerFilters.value.selectedSites.length === 0) {
-        alert("Por favor, seleccione un proveedor y al menos un site.")
+        alert("Por favor, seleccione un cliente y al menos un site.")
         return
     }
     isLoadingProviderReport.value = true
@@ -367,7 +424,7 @@ async function generateProviderReport(format = 'json') {
             const urlBlob = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = urlBlob
-            a.download = `Reporte_Proveedor_Sites.pdf`
+            a.download = `Reporte_Cliente_Sites.pdf`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
@@ -443,7 +500,7 @@ function getCCTotal(cc) {
                 class="rounded-b-none border-b-2"
                 :class="activeTab === 'providerReport' ? 'border-primary' : 'border-transparent'"
             >
-                <Building class="w-4 h-4 mr-2"/> Reporte por Proveedor
+                <Building class="w-4 h-4 mr-2"/> Reporte por Cliente
             </Button>
         </div>
 
@@ -478,9 +535,19 @@ function getCCTotal(cc) {
                             <Loader2 v-if="isLoadingStock" class="mr-2 h-4 w-4 animate-spin" />
                             <Search v-else class="mr-2 h-4 w-4" /> Consultar
                         </Button>
-                        <Button variant="outline" @click="generateStockReport('pdf')" :disabled="isLoadingStock">
-                            <Download class="mr-2 h-4 w-4" /> PDF
+                        <Button variant="outline" @click="printStockReport" :disabled="isLoadingStock">
+                            <Printer class="mr-2 h-4 w-4" /> Imprimir
                         </Button>
+                    </div>
+                    <div class="flex items-center space-x-2 pt-5">
+                        <Checkbox
+                            id="with_details"
+                            :checked="with_details"
+                            @update:checked="(val) => with_details = val"
+                        />
+                        <label for="with_details" class="text-sm font-medium cursor-pointer">
+                            Imprimir con detalle
+                        </label>
                     </div>
                 </div>
             </Card>
@@ -728,10 +795,10 @@ function getCCTotal(cc) {
              <Card class="p-4 bg-gray-50/50 border-dashed">
                 <div class="flex flex-wrap gap-4 items-end">
                     <div class="w-72">
-                        <label class="text-xs font-bold text-gray-500 mb-1 block">Proveedor</label>
+                        <label class="text-xs font-bold text-gray-500 mb-1 block">Cliente</label>
                         <Select v-model="providerFilters.provider_id">
                             <SelectTrigger class="bg-white">
-                                <SelectValue placeholder="Seleccione un proveedor" />
+                                <SelectValue placeholder="Seleccione un cliente" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem v-for="p in providers" :key="p.id" :value="p.id">
@@ -775,7 +842,7 @@ function getCCTotal(cc) {
                                     </div>
                                 </DropdownMenuItem>
                                 <div v-if="sites.length === 0" class="p-2 text-xs text-center text-gray-400">
-                                    Este proveedor no tiene sites.
+                                    Este cliente no tiene sites.
                                 </div>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -828,9 +895,9 @@ function getCCTotal(cc) {
                 </Table>
             </Card>
              <div v-else-if="!isLoadingProviderReport" class="text-center py-10 text-gray-400 border-2 border-dashed rounded-lg">
-                <p v-if="!providerFilters.provider_id">Seleccione un proveedor para empezar.</p>
+                <p v-if="!providerFilters.provider_id">Seleccione un cliente para empezar.</p>
                 <p v-else-if="sites.length > 0 && providerFilters.selectedSites.length === 0">Seleccione uno o más sites y presione "Consultar".</p>
-                <p v-else-if="sites.length === 0">El proveedor seleccionado no tiene sites asociados.</p>
+                <p v-else-if="sites.length === 0">El cliente seleccionado no tiene sites asociados.</p>
                 <p v-else>Presione "Consultar" para ver el reporte.</p>
             </div>
 

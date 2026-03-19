@@ -174,6 +174,12 @@ const routes = [
     meta: { title: 'Detalle de Transferencia' }
   },
   {
+    path: '/inventory/transfers/:id/return',
+    name: 'StockReturn',
+    component: () => import('@/views/inventory/StockReturnView.vue'),
+    meta: { title: 'Devolver Stock' }
+  },
+  {
     path: '/inventory/receipts/:id',
     name: 'InventoryReceiptDetail',
     component: () => import('@/views/inventory/InventoryDetailView.vue'),

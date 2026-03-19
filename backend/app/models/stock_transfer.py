@@ -83,6 +83,7 @@ class StockTransferItem(db.Model):
     product_name_snapshot = db.Column(db.String(255), nullable=True)
     product_sku_snapshot = db.Column(db.String(100), nullable=True)
     quantity = db.Column(db.Numeric(10, 2), nullable=False)
+    returned_quantity = db.Column(db.Numeric(10, 2), nullable=True, default=0)
     product = db.relationship('Product')
 
     def to_dict(self):
@@ -99,5 +100,6 @@ class StockTransferItem(db.Model):
             'product_id': self.product_id,
             'product_name': real_name or "Producto Eliminado/N/A",
             'product_sku': real_sku or "N/A",
-            'quantity': float(self.quantity)
+            'quantity': float(self.quantity),
+            'returned_quantity': float(self.returned_quantity or 0)
         }
